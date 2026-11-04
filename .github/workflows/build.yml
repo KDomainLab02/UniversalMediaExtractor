@@ -1,0 +1,66 @@
+name: build
+
+# PyInstaller cannot cross-compile, so each OS is built on its own runner.
+# Push a tag like v1.0.0 to also attach the binaries to a GitHub Release.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: windows
+            args: ""
+          - os: macos-latest
+            artifact: macos
+            args: "--app"
+          - os: ubuntu-latest
+            artifact: linux
+            args: ""
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt pyinstaller
+
+      - name: Build
+        run: python build_exe.py ${{ matrix.args }}
+
+      - name: Build AppImage (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          chmod +x scripts/build_appimage.sh
+          ./scripts/build_appimage.sh
+        continue-on-error: true   # ship the raw binary even if AppImage tooling fails
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*

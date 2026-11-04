@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Machine-specific: full path to a portable python.exe (see start.bat)
+python_path.txt
+
+# Runtime artifacts (generated at first launch)
+downloads/
+bin/
+
+# Runtime-downloaded yt-dlp core update ("check for updates" in the menu)
+core/
+core.new/
+core.old/
+
+# Local test files
+test_cookies
+*.log
+
+# PyInstaller output (rebuild with: python build_exe.py)
+build/
+dist/
+*.spec
+# Debug scratch files (screenshots / temp json from tests/)
+tests/_shot/
+_t.jpg
+dy_t.json
+an_test.json
+p.json
+pick_resp.json
+
+# WorkBuddy workspace metadata (not part of the project)
+.workbuddy/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+vendor/
+
+# 视频号用的腾讯元宝登录 Cookie（含个人登录态，绝不能提交）
+wechat_yuanbao_cookie.txt
+cookies_*.txt
+
+# Runtime config: user-chosen download folder (machine-specific)
+download_dir.txt

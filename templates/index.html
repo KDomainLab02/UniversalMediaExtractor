@@ -1,0 +1,3033 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K-Domain 本地万能素材提取工具</title>
+<style>
+  :root {
+    --text: #17181a; --muted: #6f7379;
+    --dark: #3a3e45; --dark-hover: #4a4f57;
+    --line: rgba(0, 0, 0, 0.1);
+    --glass: #ffffff;
+    --glass-strong: #ffffff;
+    --glass-border: #e3e5e9;
+    --glass-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    color: var(--text); min-height: 100vh;
+    background: #f5f6f8;
+    overflow-x: hidden;
+  }
+  /* flat 2D theme: decorative blobs are disabled */
+  .blob { display: none; }
+
+  .corner-fabs {
+    position: fixed; top: 18px; right: 22px; z-index: 55;
+    display: flex; flex-direction: row; align-items: center; gap: 10px;
+  }
+  /* 左上角小提示：使用前先看右上角使用说明（点击直达） */
+  .corner-hint {
+    position: fixed; top: 14px; left: 22px; z-index: 55;
+    font-size: 12px; color: #9aa0a8; cursor: pointer;
+    background: none; border: none; padding: 2px 6px; font-family: inherit;
+    transition: color .2s;
+  }
+  .corner-hint:hover { color: #55595f; text-decoration: underline; }
+  @media (max-width: 640px) { .corner-hint { display: none; } }
+  .menu-btn {
+    width: 38px; height: 38px; border-radius: 12px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    background: #fff; border: 1px solid #d9dce1; color: var(--text);
+    cursor: pointer; box-shadow: var(--glass-shadow);
+    transition: all .2s;
+  }
+  .menu-btn:hover, .menu-btn.open { background: #f2f3f5; transform: translateY(-1px); }
+
+  .menu-pop {
+    position: absolute; top: 48px; right: 0; width: 320px; max-width: calc(100vw - 28px);
+    background: #fff; border: 1px solid var(--glass-border);
+    border-radius: 16px; padding: 8px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .12);
+    animation: pop .18s ease;
+  }
+  .menu-item {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    border: none; background: none; font-family: inherit; text-align: left;
+    color: var(--text); font-size: 13.5px; font-weight: 600;
+    padding: 9px 10px; border-radius: 10px; cursor: pointer; transition: background .15s;
+  }
+  .menu-item:hover { background: rgba(0, 0, 0, .06); }
+  .menu-item:active { background: rgba(0, 0, 0, .11); }
+  .menu-item svg { flex: none; opacity: .72; }
+  /* 带边框的菜单项（选择新地址）：底色走 CSS 类，hover 才能覆盖 */
+  .menu-item.boxed {
+    background: #fff;
+    border: 1px solid #d9dce1;
+  }
+  .menu-item.boxed:hover { background: rgba(0, 0, 0, .06); }
+  .menu-item.boxed:active { background: rgba(0, 0, 0, .11); }
+  .menu-sep { height: 1px; background: rgba(0, 0, 0, .08); margin: 6px 8px; }
+  .menu-dldir { padding: 6px 10px 8px; }
+  .menu-dldir-label { font-size: 11.5px; font-weight: 700; color: var(--muted);
+    letter-spacing: .4px; margin: 2px 0 3px; }
+  .menu-dldir-cur { font-size: 12px; color: var(--text); opacity: .78;
+    word-break: break-all; margin-bottom: 4px; line-height: 1.45; }
+  .menu-dldir-hint { font-size: 11px; color: var(--muted); opacity: .9;
+    margin-bottom: 8px; line-height: 1.4; }
+  .menu-dldir-row { display: flex; gap: 6px; }
+  .menu-dldir-row input {
+    flex: 1; min-width: 0; font-family: inherit; font-size: 12.5px;
+    border: 1px solid #d9dce1; border-radius: 8px; padding: 7px 9px;
+    background: #fff; color: var(--text); outline: none;
+  }
+  .menu-dldir-row input:focus { border-color: rgba(0, 0, 0, .35); }
+  .menu-dldir-row .btn { flex: none; padding: 7px 13px; font-size: 12.5px; }
+  .menu-dldir-msg { font-size: 12px; margin-top: 7px; line-height: 1.5; display: none; }
+  .menu-dldir-msg.ok { display: block; color: #1e7e34; }
+  .menu-dldir-msg.bad { display: block; color: #c0392b; word-break: break-all; }
+
+  .mask {
+    position: fixed; inset: 0; z-index: 60; display: none;
+    align-items: center; justify-content: center; padding: 24px 16px;
+    background: rgba(23, 24, 26, .32);
+  }
+  .mask.show { display: flex; }
+  .modal {
+    width: 100%; max-width: 700px; max-height: 84vh; overflow-y: auto;
+    background: #fff; border: 1px solid var(--glass-border);
+    border-radius: 16px; padding: 24px 28px 20px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .14);
+    animation: pop .22s ease;
+    scrollbar-width: thin; scrollbar-color: #c6c9ce transparent;
+  }
+  .modal::-webkit-scrollbar { width: 6px; }
+  .modal::-webkit-scrollbar-track { background: transparent; }
+  .modal::-webkit-scrollbar-thumb { background: #c6c9ce; border-radius: 3px; background-clip: padding-box; }
+  .modal::-webkit-scrollbar-thumb:hover { background: #a9adb3; }
+  .modal::-webkit-scrollbar-button,
+  .modal::-webkit-scrollbar-button:vertical:start,
+  .modal::-webkit-scrollbar-button:vertical:end,
+  .modal::-webkit-scrollbar-button:vertical:start:decrement,
+  .modal::-webkit-scrollbar-button:vertical:end:increment,
+  .modal::-webkit-scrollbar-button:single-button:vertical:start:decrement,
+  .modal::-webkit-scrollbar-button:single-button:vertical:end:increment {
+    display: none; width: 0; height: 0;
+  }
+  @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.985); } }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .modal-head h3 { font-size: 18px; font-weight: 700; letter-spacing: .2px; }
+  .modal-close {
+    width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line);
+    background: #fff; color: var(--muted); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all .18s;
+  }
+  .modal-close:hover { background: #f2f3f5; color: var(--text); }
+  .help-sec { margin-bottom: 20px; }
+  .help-sec h4 {
+    font-size: 13px; font-weight: 700; letter-spacing: .4px; color: var(--text);
+    margin-bottom: 9px; padding-left: 9px; border-left: 3px solid var(--dark);
+  }
+  .help-sec p { font-size: 13px; line-height: 1.85; color: #43464b; }
+  .help-sec ul { list-style: none; }
+  .help-sec li { position: relative; padding-left: 14px; font-size: 13px; line-height: 1.85; color: #43464b; }
+  .help-sec li::before {
+    content: ""; position: absolute; left: 2px; top: 11px;
+    width: 4px; height: 4px; border-radius: 50%; background: #9ca0a6;
+  }
+  .tags { display: flex; flex-wrap: wrap; gap: 7px; margin: 9px 0 10px; }
+  .tag {
+    font-size: 12px; padding: 4px 10px; border-radius: 20px;
+    background: #f2f3f5; border: 1px solid var(--line); color: #3c3f44;
+  }
+  .tag.off { color: #a0a3a8; text-decoration: line-through; background: #f7f8f9; }
+  .help-note {
+    font-size: 12.5px; color: var(--muted); line-height: 1.85; padding: 12px 14px;
+    border-radius: 14px; background: rgba(0, 0, 0, .035); border: 1px solid var(--line);
+  }
+  .modal-foot {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 16px; padding-top: 13px; border-top: 1px solid var(--line);
+    font-size: 11.5px; color: var(--muted);
+  }
+
+  .wrap { max-width: 1220px; margin: 0 auto; padding: 40px 20px 60px; }
+  .cols { display: flex; gap: 24px; align-items: flex-start; }
+  .col-main { flex: 1 1 auto; min-width: 0; }
+  header { text-align: center; margin-bottom: 28px; }
+  header h1 { font-size: 30px; letter-spacing: .5px; color: var(--text); font-weight: 700; }
+  header p { color: var(--muted); margin-top: 8px; font-size: 14px; }
+
+  /* connection banner: only visible when the page lost the local server */
+  .conn-bar {
+    display: flex; align-items: center; gap: 10px; justify-content: center;
+    max-width: 720px; margin: -10px auto 20px; padding: 10px 16px;
+    border-radius: 14px; font-size: 13px; line-height: 1.5;
+    background: rgba(239, 68, 68, .12); border: 1px solid rgba(239, 68, 68, .35);
+    color: var(--text);
+  }
+  .conn-bar[hidden] { display: none; }
+  .conn-bar .btn { padding: 4px 12px; font-size: 12px; }
+  /* WeChat Channels: one-time Yuanbao cookie panel */
+  .sph-panel {
+    margin-top: 14px; padding: 14px 16px; border-radius: 14px;
+    background: rgba(7, 193, 96, .08); border: 1px solid rgba(7, 193, 96, .28);
+  }
+  .sph-title { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+  .sph-desc { font-size: 12.5px; color: var(--muted); line-height: 1.6; margin-bottom: 8px; }
+  .sph-panel textarea {
+    width: 100%; box-sizing: border-box; resize: vertical; min-height: 62px;
+    padding: 10px 12px; border-radius: 10px; font-size: 12.5px;
+    background: var(--input-bg, rgba(0,0,0,.03)); color: var(--text);
+    border: 1px solid var(--glass-border); font-family: inherit;
+  }
+  .sph-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  /* panel buttons are compact and uniform (incl. the primary "save & retry") */
+  .sph-actions .btn { padding: 7px 14px; font-size: 12.5px; border-radius: 10px; }
+  /* selected browser: dark ring + check mark, so you can see which one worked */
+  .sph-actions .btn[data-browser].on {
+    background: rgba(0, 0, 0, .06);
+    border-color: var(--dark);
+    box-shadow: inset 0 0 0 1px var(--dark);
+  }
+  .sph-actions .btn[data-browser].on::after { content: "✓"; margin-left: 6px; font-size: 11px; }
+  .sph-actions .btn[data-browser].busy { opacity: .55; }
+  .sph-msg { font-size: 12px; color: var(--muted); }
+  .sph-msg.bad { color: #ef4444; }
+  .sph-msg.ok { color: #10b981; }
+  /* paste-cookie modal */
+  .paste-desc { font-size: 13px; line-height: 1.8; color: #43464b; margin-bottom: 10px; }
+  #pasteCookieInput {
+    width: 100%; box-sizing: border-box; resize: vertical; min-height: 96px;
+    padding: 10px 12px; border-radius: 10px; font-size: 12.5px;
+    background: var(--input-bg, rgba(0,0,0,.03)); color: var(--text);
+    border: 1px solid var(--glass-border); font-family: inherit;
+  }
+
+  .glass {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    box-shadow: var(--glass-shadow);
+  }
+  .search-card { padding: 22px; }
+
+  .input-row { display: flex; gap: 12px; }
+  .input-row input {
+    flex: 1; padding: 10px 16px; font-size: 14.5px; color: var(--text);
+    background: #fff;
+    border: 1px solid #d9dce1; border-radius: 10px; outline: none;
+    transition: all .2s;
+  }
+  .input-row input::placeholder { color: #9a9ea6; }
+  .input-row input:focus { border-color: rgba(0, 0, 0, .45); background: #fff; }
+  /* compact row buttons (Clear / Analyze) so they don't tower over the input */
+  .input-row .btn { padding: 10px 20px; font-size: 14px; }
+
+  .btn {
+    border: 1px solid transparent; border-radius: 12px; cursor: pointer;
+    font-size: 15px; padding: 13px 26px; font-weight: 600; color: #fff; white-space: nowrap;
+    background: var(--dark);
+    transition: all .2s;
+  }
+  .btn:hover { background: var(--dark-hover); transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  .btn.secondary {
+    background: #fff; color: var(--text);
+    border: 1px solid #d4d7dc;
+  }
+  .btn.secondary:hover { background: #f2f3f5; }
+  .btn.ghost {
+    background: #fff; color: var(--text);
+    border: 1px solid #d4d7dc; box-shadow: none;
+  }
+  .btn.ghost:hover { background: #f2f3f5; }
+
+  .hint { margin-top: 12px; font-size: 12.5px; color: var(--muted); line-height: 1.7; }
+  .proxy-row { display: flex; gap: 10px; margin-top: 14px; align-items: center; flex-wrap: wrap; }
+  .proxy-row .grow { flex: 1 1 220px; min-width: 180px; }
+  .row-sep { width: 1px; height: 22px; background: rgba(0,0,0,.12); margin: 0 2px; }
+  .proxy-row label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .dot {
+    width: 9px; height: 9px; border-radius: 50%; display: inline-block;
+    background: #c4c7cc; margin-right: 4px; vertical-align: middle; transition: all .2s;
+  }
+  .dot.ok { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, .18); }
+  .dot.fail { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, .15); }
+  .proxy-row input, .proxy-row select {
+    padding: 8px 12px; font-size: 13px; color: var(--text);
+    background: #fff;
+    border: 1px solid #d9dce1; border-radius: 10px; outline: none;
+  }
+  .proxy-row select option { background: #fff; color: var(--text); }
+  .proxy-row select { padding-right: 34px; min-width: 200px; }
+  .proxy-row input { flex: 1; min-width: 200px; }
+  .proxy-row input:focus, .proxy-row select:focus { border-color: rgba(0,0,0,.45); background: #fff; }
+  .proxy-row .btn { padding: 8px 16px; font-size: 13px; }
+  .ep-row { margin-top: 8px; display: flex; gap: 10px; align-items: stretch; }
+  /* 批量按钮：与左侧选集按钮同高同字号，紧凑不喧宾夺主 */
+  .ep-all-btn {
+    align-self: flex-start; white-space: nowrap;
+    padding: 8px 12px; font-size: 13px; font-weight: 500;
+    border-radius: 10px; line-height: 1.4;
+    flex: 1 1 auto; max-width: 320px;   /* 宽度与左侧选集一致（同 max-width 320px） */
+  }
+  .ep-select { position: relative; width: 100%; max-width: 320px; }
+  .ep-btn {
+    width: 100%; display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 8px 12px; font-size: 13px; color: var(--text);
+    background: #fff; border: 1px solid #d9dce1; border-radius: 10px;
+    outline: none; cursor: pointer; font-family: inherit;
+  }
+  .ep-btn:hover { border-color: rgba(0,0,0,.3); }
+  .ep-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ep-pop {
+    /* fixed 定位（JS 按按钮位置计算）：absolute 会被结果卡的 overflow:hidden 裁掉。
+       关闭态靠 display:none，不设 left/top 默认值——否则向上翻清掉内联 top 时
+       会回落到 -9999px（top 优先于 bottom），弹层直接飞出屏幕 */
+    display: none; position: fixed;
+    max-height: 240px; overflow-y: auto; z-index: 90;
+    background: #fff; border: 1px solid #d9dce1; border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.10); padding: 4px;
+  }
+  .ep-pop.open { display: block; }
+  .ep-pop::-webkit-scrollbar { width: 6px; }
+  .ep-pop::-webkit-scrollbar-track { background: transparent; }
+  .ep-pop::-webkit-scrollbar-thumb { background: #d3d6db; border-radius: 3px; background-clip: padding-box; }
+  .ep-pop::-webkit-scrollbar-thumb:hover { background: #b8bcc2; }
+  .ep-item { padding: 7px 10px; font-size: 13px; color: var(--text); border-radius: 7px; cursor: pointer; }
+  .ep-item:hover { background: #f2f3f5; }
+  .ep-item.active { background: #eef0f2; color: #111; }
+  .hint.ok { color: #16a34a; display: block; }
+  .hint.bad { color: #b91c1c; display: block; }
+
+  .msg {
+    margin-top: 14px; padding: 12px 16px; border-radius: 12px; font-size: 14px; display: none;
+    background: rgba(0, 0, 0, 0.05); color: var(--text); border: 1px solid rgba(0, 0, 0, .12);
+    white-space: pre-line;
+  }
+  .msg.error { display: block; }
+
+  .result { margin-top: 24px; display: none; }
+  .video-card { display: flex; overflow: hidden; }
+  .cover-box { width: 320px; min-height: 200px; background: #17181a; position: relative; flex-shrink: 0; }
+  .cover-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cover-box .no-cover {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #8a8f98; font-size: 13px; text-align: center; line-height: 1.7;
+    padding: 0 22px; white-space: pre-line;
+  }
+  .cover-box .badge {
+    position: absolute; left: 10px; top: 10px; background: rgba(255,255,255,.16); color: #fff;
+    font-size: 12px; padding: 3px 10px; border-radius: 20px;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,.25);
+  }
+  .cover-box .dur {
+    position: absolute; right: 10px; bottom: 10px; background: rgba(0,0,0,.55); color: #fff;
+    font-size: 12px; padding: 3px 8px; border-radius: 6px;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  /* 封面播放按钮（视频在线预览） */
+  .cover-box .play-btn {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 58px; height: 58px; border-radius: 50%;
+    background: rgba(23,24,26,.72); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none; z-index: 3;
+    transition: transform .15s ease, background .15s ease;
+  }
+  .cover-box:hover .play-btn { transform: translate(-50%, -50%) scale(1.1); background: rgba(23,24,26,.9); }
+  .cover-box .play-btn svg { display: block; }
+  /* 灯箱视频模式 */
+  #lbVideo { max-width: 92vw; max-height: 86vh; border-radius: 10px; background: #000; outline: none; }
+  #lbAudio { width: min(72vw, 460px); border-radius: 10px; }
+  .lb-note {
+    position: absolute; bottom: 46px; left: 50%; transform: translateX(-50%);
+    color: rgba(255,255,255,.85); font-size: 13px; background: rgba(23,24,26,.66);
+    padding: 6px 14px; border-radius: 999px; display: none; z-index: 3; white-space: nowrap;
+  }
+  .info-box { flex: 1; padding: 20px 22px; min-width: 0; }
+  .info-box h2 { font-size: 18px; line-height: 1.45; margin-bottom: 10px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .author-row { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; margin-bottom: 4px; }
+  .author-row .avatar {
+    width: 30px; height: 30px; border-radius: 50%; color: #fff;
+    background: var(--dark);
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;
+  }
+  .cookie-used { font-size: 12px; color: #8b8f96; margin-top: 8px; }
+  .views { color: var(--muted); font-size: 13px; }
+
+  .section-label { font-size: 13px; color: var(--muted); margin: 18px 0 8px; font-weight: 600; }
+  .section-label .count { color: #9a9ea6; font-weight: 500; margin-left: 4px; }
+  .res-list { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  /* 图集预览网格 */
+  .img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 7px; }
+  .img-cell {
+    position: relative; aspect-ratio: 1 / 1; border-radius: 10px; overflow: hidden;
+    background: rgba(0, 0, 0, .05); border: 1px solid var(--line);
+  }
+  .img-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* 全屏灯箱 */
+  html.lb-open, html.lb-open body { overflow: hidden !important; overscroll-behavior: none; }
+  .lightbox {
+    position: fixed; inset: 0; z-index: 100; display: flex;
+    align-items: center; justify-content: center;
+    background: rgba(18, 19, 21, .93);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    overscroll-behavior: contain; touch-action: none;
+  }
+  .lightbox img {
+    max-width: 88vw; max-height: 84vh; border-radius: 8px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, .55); user-select: none;
+    transition: transform .16s ease-out; cursor: zoom-in;
+    will-change: transform; touch-action: none; transform-origin: center center;
+  }
+  .lb-close, .lb-nav {
+    position: fixed; z-index: 101; border: 1px solid rgba(255, 255, 255, .25);
+    background: rgba(255, 255, 255, .12); color: #fff; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    transition: background .15s;
+  }
+  .lb-close:hover, .lb-nav:hover { background: rgba(255, 255, 255, .24); }
+  .lb-close { top: 18px; right: 22px; width: 38px; height: 38px; border-radius: 50%; font-size: 20px; }
+  .lb-nav { top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; font-size: 17px; }
+  .lb-prev { left: 22px; }
+  .lb-next { right: 22px; }
+  .lb-count {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+    color: rgba(255, 255, 255, .78); font-size: 13px; letter-spacing: 1px;
+  }
+  .img-cell .more {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(100, 102, 106, .45); color: #fff; font-size: 13px; font-weight: 600;
+    letter-spacing: .3px; text-shadow: 0 1px 3px rgba(0, 0, 0, .45);
+  }
+  .chip {
+    padding: 8px 16px; border-radius: 10px; font-size: 14px; font-weight: 600; color: var(--text);
+    background: #fff; border: 1px solid #d9dce1;
+    cursor: pointer; transition: all .15s;
+  }
+  .chip:hover { border-color: rgba(0,0,0,.45); transform: translateY(-1px); }
+  .chip.active {
+    background: var(--dark);
+    border-color: var(--dark); color: #fff;
+  }
+  .action-row { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+
+  .progress-box { margin-top: 24px; display: none; }
+  .progress-card { padding: 20px; }
+  .progress-head { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 10px; }
+  .bar { height: 10px; background: #eef0f2; border: 1px solid rgba(0,0,0,.08);
+    border-radius: 6px; overflow: hidden; }
+  .bar-fill { height: 100%; width: 0;
+    background: repeating-linear-gradient(45deg, #2a2d33, #2a2d33 10px, #3d4148 10px, #3d4148 20px);
+    border-radius: 6px; transition: width .3s;
+    animation: bar-flow 1s linear infinite; }
+  /* 条纹持续流动：百分比长时间不变（如逐话下载中）也能看出没有卡住 */
+  @keyframes bar-flow { to { background-position: 28.28px 0; } }
+  .progress-meta { display: flex; justify-content: space-between; margin-top: 8px;
+    font-size: 12.5px; color: var(--muted); }
+  .done-box { text-align: center; padding: 6px 0 2px; }
+  .done-icon { width: 44px; height: 44px; margin: 0 auto; display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; background: rgba(0,0,0,.06); border: 1px solid rgba(0,0,0,.15); }
+  .done-box p { margin: 10px 0 14px; font-size: 14px; color: var(--muted); word-break: break-all; }
+  .done-box p.done-meta { margin: -6px 0 14px; font-size: 12.5px; color: #8b8f97; }
+  .done-box .done-list { display: block; margin-top: 4px; font-size: 12px; opacity: .85; }
+
+  footer { margin-top: 40px; text-align: center; color: var(--muted); font-size: 12px; line-height: 1.8; }
+  /* 解析记录侧栏 */
+  .history {
+    flex: 0 0 300px; width: 300px; min-width: 300px; max-width: 300px;
+    position: sticky; top: 24px;
+    border-radius: 18px; padding: 16px 14px 12px;
+  }
+  .hist-head { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 14px; padding: 0 4px; }
+  .hist-clear { border: none; background: none; color: var(--muted); font-size: 12px; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+  .hist-clear:hover { color: #c0392b; background: rgba(0,0,0,.05); }
+  .hist-tabs { display: flex; gap: 6px; margin: 12px 0 10px; }
+  .hist-tab {
+    flex: 1; text-align: center; font-size: 12px; font-weight: 600; padding: 6px 0;
+    border-radius: 8px; cursor: pointer; color: var(--text);
+    background: #f2f3f5; border: 1px solid transparent;
+    transition: all .15s;
+  }
+  .hist-tab:hover { border-color: rgba(0,0,0,.3); }
+  .hist-tab.active { background: var(--dark); color: #fff; border-color: var(--dark); }
+  .hist-list { max-height: 62vh; overflow-y: auto; }
+  .hist-item {
+    padding: 9px 10px; border-radius: 10px; cursor: pointer; position: relative;
+    border: 1px solid transparent; transition: background .15s;
+  }
+  .hist-item:hover { background: #f2f3f5; }
+  .hist-item .t { font-size: 13px; font-weight: 400; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 18px; }
+  .hist-item .m { font-size: 11px; color: var(--muted); margin-top: 3px;
+    display: flex; gap: 6px; align-items: center; }
+  .hist-item .badge { background: rgba(0,0,0,.06); border-radius: 4px; padding: 0 5px; letter-spacing: .3px; }
+  .hist-item .del {
+    visibility: hidden; position: absolute; right: 8px; top: 8px;
+    border: none; background: none; color: var(--muted); cursor: pointer; font-size: 13px; line-height: 1;
+  }
+  .hist-item:hover .del { visibility: visible; }
+  .hist-item .del:hover { color: #c0392b; }
+  .hist-empty { text-align: center; color: var(--muted); font-size: 12px; padding: 28px 0 22px; }
+  .hist-list::-webkit-scrollbar { width: 4px; }
+  .hist-list::-webkit-scrollbar-thumb { background: rgba(0,0,0,.14); border-radius: 2px; }
+  .hist-list::-webkit-scrollbar-button { display: none; }
+  @media (max-width: 1120px) {
+    .cols { flex-direction: column; }
+    .history { flex: auto; width: 100%; position: static; }
+  }
+
+  @media (max-width: 640px) {
+    .video-card { flex-direction: column; }
+    .cover-box { width: 100%; height: 210px; }
+    .input-row { flex-direction: column; }
+    .corner-fabs { top: 10px; right: 10px; flex-direction: row; align-items: center; gap: 8px; }
+    .menu-btn { width: 34px; height: 34px; }
+    .modal { padding: 20px 18px 16px; max-height: 88vh; }
+  }
+</style>
+</head>
+<body>
+<div class="blob b1"></div>
+<div class="blob b2"></div>
+<button class="corner-hint" onclick="openHelp()" data-i18n="corner_hint">使用前先看右上角「使用说明」</button>
+<div class="corner-fabs">
+  <button class="menu-btn" id="menuBtn" onclick="toggleMenu(event)" aria-label="Menu">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+  </button>
+  <div class="menu-pop" id="menuPop" style="display:none">
+    <button class="menu-item" id="menuHelpBtn" onclick="openHelp(); closeMenu();">
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <circle cx="7.5" cy="7.5" r="6.2"/>
+        <path d="M5.7 5.6c.2-1 1-1.6 1.9-1.6 1 0 1.8.7 1.8 1.6 0 1.2-1.6 1.3-1.6 2.5"/>
+        <circle cx="7.7" cy="10.7" r=".2" fill="currentColor"/>
+      </svg>
+      <span data-i18n="menu_help">使用说明</span>
+    </button>
+    <button class="menu-item" onclick="toggleLang()">
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+        <circle cx="7.5" cy="7.5" r="6.2"/>
+        <path d="M1.3 7.5h12.4M7.5 1.3c-1.8 1.7-2.7 3.9-2.7 6.2s.9 4.5 2.7 6.2c1.8-1.7 2.7-3.9 2.7-6.2S9.3 3 7.5 1.3z"/>
+      </svg>
+      <span data-i18n="menu_lang">切换为 English</span>
+    </button>
+    <div class="menu-sep"></div>
+    <div class="menu-dldir">
+      <div class="menu-dldir-label" data-i18n="menu_dldir">下载地址</div>
+      <div class="menu-dldir-cur" id="dldirCur"></div>
+      <div class="menu-dldir-hint" data-i18n="dldir_hint">解析出的视频 / 图片 / 音乐都保存到这里</div>
+      <button class="menu-item boxed" id="pickDirBtn" onclick="pickDownloadDir()">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M7.5 2v11M2 7.5h11"/>
+        </svg>
+        <span data-i18n="dldir_pick">选择新地址</span>
+      </button>
+      <div class="menu-dldir-msg" id="dldirMsg"></div>
+      <button class="menu-item" style="margin-top:6px" onclick="openDlFolder()">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1.5 3.5c0-.6.4-1 1-1h3l1.5 1.8h5.5c.6 0 1 .4 1 1v6.2c0 .6-.4 1-1 1h-10c-.6 0-1-.4-1-1v-8z"/>
+        </svg>
+        <span data-i18n="dldir_open">打开下载文件夹</span>
+      </button>
+    </div>
+    <div class="menu-sep"></div>
+    <div class="menu-dldir">
+      <div class="menu-dldir-label" data-i18n="core_label">解析核心（yt-dlp）</div>
+      <div class="menu-dldir-cur" id="coreVer">—</div>
+      <div class="menu-dldir-hint" data-i18n="core_hint">平台改动解析失效时，更新它即可，不用重装程序</div>
+      <button class="menu-item boxed" id="coreBtn" onclick="updateCore()">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13 7.5a5.5 5.5 0 1 1-1.6-3.9"/>
+          <path d="M13 2.2v2.8h-2.8"/>
+        </svg>
+        <span data-i18n="core_update">检查更新</span>
+      </button>
+      <div class="menu-dldir-msg" id="coreMsg"></div>
+    </div>
+  </div>
+</div>
+
+<div class="mask" id="helpMask" onclick="if (event.target === this) closeHelp()">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="modal-head">
+      <h3 id="helpTitle"></h3>
+      <button class="modal-close" onclick="closeHelp()" aria-label="Close">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+          <path d="M1 1l10 10M11 1L1 11"/>
+        </svg>
+      </button>
+    </div>
+    <div id="helpBody"></div>
+    <div class="modal-foot">
+      <span id="helpVersion"></span>
+      <span>K-Domain · MIT License</span>
+    </div>
+  </div>
+</div>
+
+<div class="mask" id="pasteMask" onclick="if (event.target === this) closePasteModal()">
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:620px">
+    <div class="modal-head">
+      <h3 data-i18n="paste_title"></h3>
+      <button class="modal-close" onclick="closePasteModal()" aria-label="Close">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+          <path d="M1 1l10 10M11 1L1 11"/>
+        </svg>
+      </button>
+    </div>
+    <p class="paste-desc" data-i18n="paste_desc"></p>
+    <textarea id="pasteCookieInput" rows="5" data-i18n-ph="paste_ph"></textarea>
+    <div class="sph-actions">
+      <button class="btn" id="pasteSaveBtn" onclick="savePastedCookie()" data-i18n="paste_save">保存并使用</button>
+      <span class="sph-msg" id="pasteMsg"></span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <header>
+    <h1 data-i18n="h1">K-Domain 本地万能<span>素材提取工具</span></h1>
+    <p data-i18n="subtitle"></p>
+  </header>
+
+  <div class="conn-bar" id="connBar" hidden>
+    <span class="dot fail"></span>
+    <span id="connText"></span>
+    <button class="btn secondary" onclick="checkConn(true)" data-i18n="conn_retry">重试连接</button>
+  </div>
+
+  <div class="cols">
+  <div class="col-main">
+
+  <div class="glass search-card">
+    <div class="input-row">
+      <input id="urlInput" type="text" data-i18n-ph="input_ph" autofocus>
+      <button class="btn secondary" id="clearBtn" data-i18n="clear_input" onclick="clearInput()">清空</button>
+      <button class="btn" id="analyzeBtn" data-i18n="analyze_btn" onclick="analyze()">开始解析</button>
+    </div>
+    <div class="hint" data-i18n="tip_hint"></div>
+    <div class="proxy-row">
+      <label><span class="dot" id="proxyDot"></span><span data-i18n="proxy_label"></span></label>
+      <input id="proxyInput" type="text" data-i18n-ph="proxy_ph" class="grow">
+      <button class="btn secondary" id="testProxyBtn" data-i18n="test_btn" onclick="testProxy()">测试</button>
+      <button class="btn secondary" id="autoDetectBtn" data-i18n="auto_btn" onclick="autoDetect()">自动检测</button>
+    </div>
+    <div class="proxy-row">
+      <label data-i18n="cookie_label"></label>
+      <select id="cookieSelect">
+        <option value="auto" data-i18n="cookie_auto">自动（免登录优先）</option>
+        <option value="" data-i18n="cookie_off"></option>
+        <option value="edge">Edge</option>
+        <option value="chrome">Chrome</option>
+        <option value="firefox">Firefox</option>
+        <option value="manual" data-i18n="cookie_manual">导入的文件</option>
+      </select>
+      <span class="row-sep"></span>
+      <button class="btn secondary" id="exportCookieBtn" data-i18n="export_btn" onclick="exportCookies()">一键导出</button>
+      <button class="btn secondary" id="importCookieBtn" data-i18n="import_btn" onclick="document.getElementById('cookieFile').click()">导入</button>
+      <button class="btn secondary" id="pasteCookieBtn" data-i18n="paste_btn" onclick="openPasteModal()">粘贴</button>
+      <input type="file" id="cookieFile" accept=".txt" style="display:none" onchange="importCookies(this)">
+    </div>
+    <div class="hint" id="proxyHint" style="display:none"></div>
+    <div class="hint" data-i18n="cookie_hint"></div>
+    <div class="sph-panel" id="sphPanel" style="display:none">
+      <div class="sph-title" data-i18n="sph_title"></div>
+      <div class="sph-desc" data-i18n="sph_desc"></div>
+      <textarea id="sphCookieInput" rows="3" data-i18n-ph="sph_ph"></textarea>
+      <div class="sph-actions">
+        <button class="btn" onclick="saveSphCookie()" data-i18n="sph_save">保存并重试</button>
+        <button class="btn secondary" data-browser="edge" onclick="sphCookieFromBrowser('edge')">Edge</button>
+        <button class="btn secondary" data-browser="chrome" onclick="sphCookieFromBrowser('chrome')">Chrome</button>
+        <button class="btn secondary" data-browser="firefox" onclick="sphCookieFromBrowser('firefox')">Firefox</button>
+        <span class="sph-msg" id="sphMsg"></span>
+      </div>
+    </div>
+    <div class="msg error" id="errorMsg"></div>
+  </div>
+
+  <div class="result" id="result">
+    <div class="glass video-card">
+      <div class="cover-box" id="coverBox">
+        <span class="no-cover" data-i18n="no_cover"></span>
+        <span class="badge" id="platformBadge"></span>
+        <span class="dur" id="durBadge"></span>
+        <span class="play-btn" id="playBtn" style="display:none"><svg width="24" height="24" viewBox="0 0 24 24" fill="#fff"><path d="M8 5.5v13l11-6.5z"/></svg></span>
+      </div>
+      <div class="info-box">
+        <h2 id="titleText"></h2>
+        <div class="author-row">
+          <div class="avatar" id="authorAvatar"></div>
+          <span id="authorText"></span>
+        </div>
+        <div class="views" id="viewsText"></div>
+        <div class="cookie-used" id="cookieUsed" style="display:none"></div>
+
+        <div id="resSec">
+          <div class="section-label" id="resLabel" data-i18n="sec_res"></div>
+          <div class="res-list" id="resList"></div>
+        </div>
+
+        <div id="epSec" style="display:none">
+          <div class="section-label" data-i18n="sec_ep"></div>
+          <div class="ep-row">
+            <div class="ep-select" id="epSelect">
+              <button type="button" class="ep-btn" id="epBtn">
+                <span id="epLabel"></span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="ep-pop" id="epPop"></div>
+            </div>
+            <button type="button" class="btn ghost ep-all-btn" id="epAllBtn" onclick="startDownload('batch')"></button>
+          </div>
+        </div>
+
+        <div id="imgSec" style="display:none">
+          <div class="section-label">
+            <span data-i18n="sec_images"></span><span class="count" id="imgCountText"></span>
+          </div>
+          <div class="img-grid" id="imgGrid"></div>
+        </div>
+
+        <div class="action-row">
+          <button class="btn" id="dlVideoBtn" onclick="startDownload('video')">下载视频</button>
+          <button class="btn ghost" id="dlAudioBtn" onclick="startDownload('audio')">提取音频 (MP3)</button>
+          <button class="btn ghost" id="coverBtn" style="display:none" onclick="saveCover()">保存封面</button>
+          <button class="btn ghost" id="lyricsBtn" style="display:none" onclick="saveLyrics()">导出歌词</button>
+          <button class="btn" id="dlImagesBtn" style="display:none" onclick="startDownload('images')">打包下载全部图片</button>
+          <button class="btn" id="dlMusicBtn" style="display:none" onclick="startDownload('music')">下载音乐 (MP3)</button>
+        </div>
+        <div class="hint" id="musicHint" style="display:none" data-i18n="music_hint"></div>
+        <div class="hint" id="lyricsHint" style="display:none" data-i18n="lyrics_hint"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="progress-box" id="progressBox">
+    <div class="glass progress-card" id="progressCard"></div>
+  </div>
+
+  </div><!-- /col-main -->
+
+  <aside class="history glass" id="historyPanel">
+    <div class="hist-head">
+      <span data-i18n="hist_title">解析记录</span>
+      <button class="hist-clear" data-i18n="hist_clear" onclick="clearHistory()">清空</button>
+    </div>
+    <div class="hist-tabs" id="histTabs"></div>
+    <div class="hist-list" id="histList"></div>
+  </aside>
+
+  </div><!-- /cols -->
+
+  <footer>
+    <span data-i18n="footer1"></span><br>
+    <span data-i18n="footer2"></span>
+  </footer>
+</div>
+
+<div class="lightbox" id="lightbox" style="display:none">
+  <button class="lb-close" title="关闭 (Esc)" onclick="closeLightbox()">&#10005;</button>
+  <button class="lb-nav lb-prev" title="上一张 (&larr;)" onclick="lbStep(-1)">&#10094;</button>
+  <img id="lbImg" alt="">
+  <video id="lbVideo" controls playsinline style="display:none"></video>
+  <audio id="lbAudio" controls style="display:none"></audio>
+  <div class="lb-note" id="lbNote"></div>
+  <button class="lb-nav lb-next" title="下一张 (&rarr;)" onclick="lbStep(1)">&#10095;</button>
+  <div class="lb-count" id="lbCount"></div>
+<script>
+// ---------------- i18n ----------------
+const I18N = {
+  zh: {
+    doc_title: "K-Domain 本地万能素材提取工具",
+    h1: 'K-Domain 本地万能<span>素材提取工具</span>',
+    subtitle: "影视 · 漫画/图集 · 音乐，一个链接源素材全搞定 —— 支持 B站 · 抖音 · 小红书 · 网易云音乐 · YouTube 等上千个平台",
+    input_ph: "粘贴视频、图集或音乐链接，例如 https://www.youtube.com/watch?v=...",
+    analyze_btn: "开始解析", analyzing: "解析中…",
+    tip_hint: "提示：抖音 / B站可分享短链接；图集帖会列出全部无水印原图并导出为高清 PNG；若目标平台在你的网络中无法直接访问，请填写代理地址，或点击「自动检测」",
+    proxy_label: "代理设置：",
+    proxy_ph: "填写代理软件的本地端口，如 http://127.0.0.1:7897（留空 = 直连）",
+    cookie_label: "登录态：",
+    cookie_auto: "自动（免登录优先）",
+    cookie_off: "不使用",
+    cookie_manual: "导入的文件",
+    import_btn: "导入", importing_btn: "导入中…",
+    paste_btn: "粘贴",
+    paste_title: "粘贴 Cookie（免文件导入）",
+    paste_desc: "支持 F12 直接复制：在要登录的平台网页上按 F12 → 切到 Network（网络）标签 → 按 F5 刷新 → 点任意一条请求 → 在右侧「请求标头」里找到 Cookie → 右键复制值，整串粘到下面保存即可。也可以直接粘贴扩展导出的 cookies.txt 内容。Cookie 会按上方输入框里链接所属的网站保存（所以请先粘好链接再点「粘贴」）。",
+    paste_ph: "粘贴 Cookie 请求头（形如 a=1; b=2; …）或 cookies.txt 内容",
+    paste_save: "保存并使用",
+    paste_empty: "请先粘贴内容",
+    import_ok: (n) => `已导入 ${n} 条 Cookie 并自动选用（Cookie 下拉框已切换为「导入的文件」）`,
+    import_bad: "导入失败：文件格式不对，应为浏览器扩展导出的 Netscape cookies.txt",
+    import_fail: "导入失败：",
+    auto_btn: "自动检测", detecting: "检测中…",
+    export_btn: "一键导出", exporting: "导出中…",
+    export_confirm: "即将自动关闭 Edge/Chrome 并导出 Cookie，完成后浏览器会自动重启并恢复标签页。若当前页面正开在该浏览器中，完成后请重新打开 http://127.0.0.1:8765 。确定继续吗？",
+    export_done: "Cookie 导出成功！之后解析时选择该浏览器即可，无需再关闭浏览器",
+    export_fail: "导出失败：",
+    auto_found: (p) => `已检测到可用代理：${p}（已自动填入，实测可访问该链接平台）`,
+    auto_direct: "当前网络可直连访问该链接平台，无需代理",
+    auto_found_generic: (p) => `已检测到可用代理：${p}（已自动填入，网络连通正常）`,
+    auto_direct_generic: "当前网络无需代理即可正常访问外部站点",
+    auto_fail: "直连和所有常见代理均无法访问该平台，请确认代理软件已开启后重试",
+    auto_fail_generic: "未检测到可用的网络方案（直连与常见代理均不可达），请确认代理软件已开启后重试，或手动填写",
+    test_btn: "测试", testing: "测试中…",
+    cookie_hint: "默认「自动」：先免登录直接解析，只有在平台确实要求登录时才自动读取你本机浏览器的登录态，全程无需手动操作。若自动仍失败：①「一键导出」用已登录的浏览器一次性带走所有网站的登录态（永久生效，不用再关浏览器）；②「粘贴」针对单个网站，按弹窗提示 F12 复制该网站的 Cookie 粘贴保存；③「导入」可上传浏览器扩展导出的 cookies.txt。关闭页面不影响工具，重新打开即可恢复",
+    no_cover: "无法加载封面",
+    cover_net_fail: "封面图被网络限制，加载失败\n请在「代理设置」更换节点后重新解析\n（国内平台请清空代理直连）",
+    sec_res: "选择视频分辨率",
+    sec_ep: "选择剧集（下载所选集）",
+    sec_ep_manga: "选择话数（下载所选话）",
+    dl_all_ch: "下载全话", dl_all_ep: "下载全集",
+    dl_all_ing: "下载中…", dl_all_ch_done: "已下载全话", dl_all_ep_done: "已下载全集",
+    batch_confirm: "共 {n} 话，逐话下载耗时较长，确定开始吗？",
+    batch_confirm_ep: "共 {n} 集，逐集下载耗时较长，确定开始吗？",
+    res_ok: (n) => `成功 ${n} 话`, res_skip: (n) => `跳过已下载 ${n} 话`,
+    res_fail: (n) => `失败 ${n} 话`, res_failed_list: "失败：",
+    res_ok_ep: (n) => `成功 ${n} 集`, res_skip_ep: (n) => `跳过已下载 ${n} 集`,
+    res_fail_ep: (n) => `失败 ${n} 集`,
+    res_original: "原画",
+    res_max: (x) => `原视频最高 ${x}，由平台画质决定`,
+    sec_images: "图集预览",
+    img_count: (n) => `共 ${n} 张`,
+    dl_video: "下载视频", dl_audio: "提取音频 (MP3)",
+    music_hint: "所有音乐统一下载为通用 MP3 格式",
+    lyrics_hint: "下载音乐会自动内嵌双语歌词，播放器里直接看；「导出歌词」是另存一份 .lrc 文件，给只认同文件夹歌词文件的播放器用",
+    lyrics_none: "纯音乐或平台未提供歌词，因此没有歌词可导出",
+    preview: "预览", preview_silent: "预览可能无声，下载后即带声音",
+    preview_fail: "该平台暂不支持在线预览，可先下载后观看",
+    preview_audio: "试听（无需下载）",
+    cover_btn: "保存封面", cover_saving: "保存中…", cover_saved: "已保存封面",
+    dl_saved_video: "已保存视频", dl_saved_audio: "已保存音频",
+    dl_saved_music: "已保存音乐", dl_saved_images: "已保存图片",
+    cover_fail: "封面保存失败，可在封面上右键「图片另存为」",
+    cover_saved_ok: "已保存到下载目录",
+    cover_saved_to: "封面已保存到：",
+    dl_images: "下载全部原图（PNG）", dl_music: "下载音乐 (MP3)",
+    lyrics_btn: "导出歌词", lyrics_saved: "已保存歌词",
+    type_video: "视频", type_image: "图集", type_audio: "音乐",
+    cookie_used: (n) => `已自动使用 ${n} 的登录态解析`,
+    views_suffix: " 次观看",
+    unknown: "未知",
+    prog_dl: "正在下载…", prog_audio: "正在提取音频…", prog_merge: "正在合成封装…",
+    prog_img: "正在下载图片…", prog_music: "正在提取音乐…",
+    elapsed: "已用时",
+    eta_prefix: "剩余 ",
+    ready: "文件已就绪", save_btn: "打开所在文件夹", dl_fail: "下载失败：",
+    reveal_fail: "无法打开文件夹：",
+    proxy_ok: (code, ms) => `连接正常，可访问该链接所属平台（HTTP ${code}，耗时 ${ms} 毫秒）`,
+    proxy_bad: (err) => `连接失败：${err}`,
+    proxy_test_fail: "测试请求失败，请确认服务已启动",
+    conn_down: "页面还在，但和本地服务的连接断了（服务已关闭或正在重启）。按 Ctrl+F5 强制刷新即可恢复；不行就重新运行 start.bat",
+    conn_retry: "重试连接",
+    sph_title: "微信视频号：需要一次性配置",
+    sph_desc: "视频号的视频地址只在微信内部下发，工具改用腾讯元宝的解析接口拿直链，需要一次性配置元宝登录态（新版 Chrome/Edge 的 Cookie 加密了，无法被程序自动读取，请按下面 4 步手动复制，一次配置永久生效）：① 在浏览器打开 yuanbao.tencent.com 并登录（免费）；② 就在元宝那个页面上按 F12（别在工具页按）→ 切到 Network（网络）标签（部分浏览器标签只有图标，点那个像 WiFi 信号的图标即可）→ 按 F5 刷新页面；③ 点任意一条请求（名称列只显示文件名，域名都是元宝的，随便选）→ 在右侧「请求标头」里找到 Cookie，右键复制值（或把冒号后面整串复制）；④ 粘到下面输入框，点「保存并重试」。（下面的浏览器按钮仅在旧版浏览器上可用，点失败就用上面 4 步）",
+    sph_ph: "粘贴腾讯元宝的 Cookie（形如：hy_user=...; hy_token=...; ...）",
+    sph_save: "保存并重试",
+    sph_saved: "已保存，正在重新解析…",
+    sph_read_fail: "读取失败：",
+    sphc_COOKIE_LOCK: "这个浏览器还在后台运行（关掉窗口不代表退出了——Windows 的「启动加速」会保留后台进程，把 Cookie 库整个锁住）。请：任务栏右键浏览器图标 → 退出；或在任务管理器结束所有 msedge.exe / chrome.exe 进程后再点",
+    sphc_COOKIE_READ: "读不了这个浏览器的 Cookie 库，请改用 F12 手动复制的方式",
+    sphc_APP_BOUND: "这个浏览器的 Cookie 用了新版加密（app-bound），程序读不出来。请按 F12 → Network → 刷新页面 → 点任意请求，把请求头里 Cookie: 后面整串复制到输入框保存",
+    sphc_NO_LOGIN: "该浏览器里没有腾讯元宝的登录态，请先在这个浏览器打开 yuanbao.tencent.com 登录一次再点",
+    sphc_NOT_INSTALLED: "本机没有安装这个浏览器。请改用你已登录 yuanbao.tencent.com 的那个浏览器，或用 F12 手动复制 Cookie",
+    sphc_READ_FAIL: "读取浏览器 Cookie 失败，请改用 F12 手动复制的方式",
+    ERR_SPH_COOKIE: "视频号需要一次性配置腾讯元宝登录态（见下方面板）：登录 yuanbao.tencent.com 后，按 F12 → Network → 复制任意请求的 Cookie 粘进面板即可（详见面板灰色说明）",
+    ERR_SPH_PARSE: "视频号解析失败：分享链接可能已过期，或该内容不支持（直播回放、付费内容无法解析）",
+    ERR_SPH_NET: "视频号接口请求失败，请检查网络或代理设置后重试",
+    ERR_X_LOGIN: "X（推特）的访客通道不稳定，偶尔会把视频误报为「不可用」（工具已自动重试仍失败）。请稍等几秒再点一次「开始解析」，通常即可成功；反复失败可换一个代理节点试试。若长期无法解析，再用「粘贴」配置已登录 X 的 Cookie 作保底（一次配置，永久生效）",
+    err_net: "请求发送失败：连不上本机服务。请先在本窗口按 Ctrl+F5 强制刷新页面；若仍失败，关掉黑色命令行窗口后重新双击 start.bat，再打开 http://127.0.0.1:8765",
+    err_timeout: "解析超时（90 秒）：平台响应太慢或解析通道卡住了，请重试一次；反复超时就关掉黑窗口重新打开程序",
+    ERR_EMPTY_URL: "没有识别到链接：分享文案里要包含网址（如 v.douyin.com/xxxx 或 https://… 开头的链接），只有文字是解析不了的",
+    net_retry: "本机服务暂时连不上，正在自动重试（{n}/{max}）…开发模式下改代码会重启服务，稍等即可",
+    poll_lost: "下载任务已中断：本机服务重启会导致进行中的任务丢失（开发模式改代码就会重启）。请重新点一次下载",
+    err_server_bad: "服务返回了异常数据，请重启服务（关闭窗口后重新运行 python app.py）后刷新页面",
+    err_empty: "请先粘贴链接", err_task_create: "任务创建失败",
+    err_pick_browser: "请先在 Cookie 下拉框中选择浏览器（Edge / Chrome / Firefox）",
+    ERR_PROXY: "当前代理无法访问该平台。请更换「代理设置」中的代理地址，或点击「测试」验证",
+    ERR_SIGNIN: "该平台要求登录验证。请在「浏览器 Cookie」中选择你已登录该平台的浏览器后重试",
+    ERR_YT_BOT: "YouTube 把你当前网络的出口 IP 判定为机器人（代理节点共享人数多时很常见），换了客户端也拦，这跟登不登录无关。按顺序试：① 在代理软件里换一个节点，回工具重试，多数情况换节点就能过；② 换个节点仍提示，就用你登录过 YouTube 的浏览器：在「登录态」选中它重试，或点「一键导出」生成 Cookie 文件（永久生效）；③ 用的机场节点人多就容易触发，换个人少的节点/专线最有效",
+    ERR_COOKIE_LOCK: "所选浏览器的 Cookie 无法读取（浏览器正在运行），工具已自动改用无 Cookie 方式重试仍失败：该平台确实需要登录验证。请完全退出该浏览器后重试，或双击「export-cookies.bat」一次性导出后永久生效",
+    ERR_COOKIE_ENCRYPT: "Edge / Chrome 新版启用了 App-Bound 加密，第三方工具无法解密其 Cookie（官方安全限制，所有下载工具均受影响）。两条可行方案：① 改用 Firefox：登录该平台后选 Firefox 一键导出；② 在 Edge 安装扩展「Get cookies.txt LOCALLY」导出 txt 文件，再点「导入」按钮",
+    ERR_WEIXIN_SPH: "微信视频号的内容受微信客户端授权保护，第三方工具无法匿名解析。建议：若该视频也发布在抖音/B站/YouTube 等平台，请改用对应平台的链接",
+    ERR_QISHUI_NO_AUDIO: "平台未提供这首歌的音频源（因版权调整暂不可用，或下载需要平台会员），任何工具都无法下载。这不是工具或链接的问题：可在汽水音乐 App 里确认该歌曲是否还能播放",
+    ERR_QISHUI_PARSE: "汽水音乐页面数据获取失败：分享链接可能不完整或已失效，请在汽水音乐 App 重新分享一次",
+    ERR_IQIYI_PARSE: "这条爱奇艺链接已失效：短链被平台重定向到 404 页面（内容可能已被删除、下架，或分享已过期）。请在爱奇艺 App 里重新分享一次拿新链接；VIP/付费内容需要登录会员账号才能观看，工具不支持解析付费内容",
+    ERR_FILM_PARSE: "未能从该影视页面解析出视频源：播放线路可能已失效，或链接不是影片详情页/播放页。请在原站打开影片、换一条线路播放，再复制页面链接重试",
+    ERR_FILM_SOURCE: "影片视频源拉取失败：影片服务器暂时无法访问，请稍后重试",
+    ERR_UNSUPPORTED: "暂不支持该链接所属的平台，或链接格式有误",
+    ERR_PROXY_NEEDED: "解析失败：该平台的视频/图片服务器无法直连（当前未填写代理）。请在「代理设置」填入代理软件的本地端口，或点「自动检测」自动填入后重试",
+    ERR_NETWORK: "网络无法访问该平台：解析海外平台时，多半是当前代理节点不通或被限制——请更换代理节点后重试，也可点「自动检测」挑选可用节点；解析国内平台时请清空代理直连",
+    ERR_NO_MEDIA: "这条链接里没有找到可提取的视频/图集/音频：可能只是普通文字帖，或媒体已被删除。X/推特的图片帖会自动走图集通道解析；若链接确实带图/带视频仍报此错，可能是平台接口临时受限，请稍后重试或更换代理节点",
+    ERR_DOUYIN_CDP_TIMEOUT: "抖音解析超时：已通过本机浏览器打开该页面，但迟迟未取到视频数据——页面可能弹出了滑块验证，请稍后重试",
+    ERR_DOUYIN_NO_BROWSER: "解析抖音需要本机安装 Edge 或 Chrome 浏览器（会以无痕模式在后台打开页面取数据，全程免登录），但未能找到浏览器。请安装 Edge/Chrome 后重试",
+    ERR_DOUYIN_PARSE: "未能解析该抖音作品：链接可能已失效、内容已被删除，或复制时少了字符（链接区分大小写）。请在抖音 App 里重新分享一次，复制完整链接后重试",
+    ERR_DOUYIN_NO_WS: "缺少解析抖音所需的 websocket-client 组件，请在命令行执行 pip install websocket-client 后重试",
+    ERR_DOUYIN_TAB_FAIL: "抖音浏览器通道启动失败，请重试；若反复出现，请关闭后台多余的 Edge/Chrome 窗口后重试",
+    ERR_PRIVATE: "该内容不存在、已删除或被设为私密，无法解析。请确认原链接在浏览器里是否还能正常打开",
+    ERR_GENERIC: "解析失败",
+    footer1: "本工具仅供个人学习与研究使用，请尊重内容创作者的版权与各平台服务条款，勿用于商业用途。",
+    footer2: "影视 · 漫画/图集 · 音乐 · © 2026 K-Domain 开源 · 基于 MIT 协议发布",
+    hist_title: "解析记录", hist_clear: "清空",
+    hist_all: "全部", hist_empty: "暂无解析记录",
+    hist_types: { video: "视频", image: "图集", audio: "音频" },
+    menu_help: "使用说明", menu_lang: "切换为 English",
+    corner_hint: "使用前先看右上角「使用说明」",
+    clear_input: "清空",
+    menu_dldir: "下载地址", dldir_pick: "选择新地址", dldir_picking: "正在选择…",
+    dldir_hint: "解析出的视频 / 图片 / 音乐都保存到这里",
+    dldir_open: "打开下载文件夹",
+    core_label: "解析核心（yt-dlp）",
+    core_hint: "平台改动导致解析失效时，更新它即可，不用重装程序",
+    core_update: "检查更新",
+    core_checking: "检查中…",
+    core_latest: "已是最新版 {v}",
+    core_updated: "已下载 {v}，重启程序后生效（关闭黑窗口再重新打开）",
+    core_fail: "更新失败：",
+    core_from_update: "来自运行时更新（core 目录）",
+    core_from_bundled: "程序内置版本",
+    dldir_ok: "已保存，之后的下载将存到这里",
+    dldir_same: "这就是当前地址，没有变化",
+    dldir_fail: "保存失败：",
+    dldir_open_fail: "打开失败：",
+    dir_title: "选择下载文件夹",
+  },
+  en: {
+    doc_title: "K-Domain Local Universal Media Extractor",
+    h1: 'K-Domain Local <span>Universal Media Extractor</span>',
+    subtitle: "100% local — videos · manga/galleries · music from one link, original source quality — Bilibili · Douyin · Xiaohongshu · NetEase Music · YouTube and 1000+ platforms",
+    input_ph: "Paste a video, gallery or music link, e.g. https://www.youtube.com/watch?v=...",
+    analyze_btn: "Analyze", analyzing: "Analyzing…",
+    tip_hint: "Tip: share links (Douyin/Bilibili) work too. Gallery posts list every watermark-free original image, exported as high-quality PNG. If the platform is not directly reachable from your network, set a proxy below or click Auto-detect",
+    proxy_label: "Proxy:",
+    proxy_ph: "Local proxy port, e.g. http://127.0.0.1:7897 (empty = direct)",
+    cookie_label: "Sign-in:",
+    cookie_auto: "Auto (no login first)",
+    cookie_off: "None",
+    cookie_manual: "Imported file",
+    import_btn: "Import", importing_btn: "Importing…",
+    paste_btn: "Paste",
+    paste_title: "Paste cookies (no file needed)",
+    paste_desc: "F12 copy-paste works: on the site you want to log in to, press F12 → switch to the Network tab → press F5 → click any request → find Cookie under Request Headers → right-click → copy value, paste the whole string below and save. You can also paste the contents of an exported cookies.txt. Cookies are saved for the site of the link in the input box above (paste your link first, then click Paste).",
+    paste_ph: "Paste a Cookie header (e.g. a=1; b=2; …) or cookies.txt contents",
+    paste_save: "Save and use",
+    paste_empty: "Paste something first",
+    import_ok: (n) => `Imported ${n} cookies and selected them automatically (Cookie dropdown switched to "Imported file")`,
+    import_bad: "Import failed: wrong format. Expected a Netscape cookies.txt exported by a browser extension",
+    import_fail: "Import failed: ",
+    auto_btn: "Auto-detect", detecting: "Detecting…",
+    export_btn: "One-click Export", exporting: "Exporting…",
+    export_confirm: "This will automatically close Edge/Chrome, export cookies, then restart the browser with your tabs restored. If this page is open in that browser, reopen http://127.0.0.1:8765 afterwards. Continue?",
+    export_done: "Cookies exported! Select this browser when parsing - no need to close it anymore",
+    export_fail: "Export failed: ",
+    auto_found: (p) => `Working proxy detected: ${p} (filled in automatically, verified against this link's platform)`,
+    auto_direct: "Your network can reach this platform directly, no proxy needed",
+    auto_found_generic: (p) => `Working proxy detected: ${p} (filled in automatically, connectivity OK)`,
+    auto_direct_generic: "Your network can reach external sites directly, no proxy needed",
+    auto_fail: "Neither direct connection nor common proxies can reach this platform. Make sure your proxy app is running and retry",
+    auto_fail_generic: "No working network route found (direct and common proxies all unreachable). Make sure your proxy app is running and retry, or enter the address manually",
+    test_btn: "Test", testing: "Testing…",
+    cookie_hint: "Default is Auto: it parses without login first, and only reads your browser sign-in when the platform actually requires it - no manual steps. If that still fails: 1) One-click Export takes the sign-in of ALL websites from a logged-in browser at once (works forever, no need to close the browser); 2) Paste targets a single website - follow the prompt to copy that site's cookie via F12; 3) Import accepts a cookies.txt exported by a browser extension. Closing the page does not stop the tool - reopen http://127.0.0.1:8765 to get it back",
+    no_cover: "Cover unavailable",
+    cover_net_fail: "The cover image is blocked by the network\nSwitch to another proxy node and analyze again\n(clear the proxy for mainland-China platforms)",
+    sec_res: "Select video resolution",
+    sec_ep: "Select episode (downloads the chosen one)",
+    sec_ep_manga: "Select chapter (downloads the chosen one)",
+    dl_all_ch: "Download All Chapters", dl_all_ep: "Download All Episodes",
+    dl_all_ing: "Downloading…", dl_all_ch_done: "All Chapters Saved", dl_all_ep_done: "All Episodes Saved",
+    batch_confirm: "{n} chapters in total — downloading one by one takes a while. Start now?",
+    batch_confirm_ep: "{n} episodes in total — downloading one by one takes a while. Start now?",
+    res_ok: (n) => `${n} saved`, res_skip: (n) => `${n} already on disk`,
+    res_fail: (n) => `${n} failed`, res_failed_list: "Failed: ",
+    res_ok_ep: (n) => `${n} saved`, res_skip_ep: (n) => `${n} already on disk`,
+    res_fail_ep: (n) => `${n} failed`,
+    res_original: "Source",
+    res_max: (x) => `Original max ${x} (set by the platform)`,
+    sec_images: "Gallery preview",
+    img_count: (n) => `${n} images`,
+    dl_video: "Download Video", dl_audio: "Extract Audio (MP3)",
+    music_hint: "All music is downloaded and converted to universal MP3",
+    lyrics_hint: "Downloading the MP3 auto-embeds bilingual lyrics (visible in your player); Export Lyrics saves a separate .lrc file for players that only read sidecar lyrics",
+    lyrics_none: "Instrumental track or no lyrics provided by the platform - nothing to export",
+    preview: "Preview", preview_silent: "Preview may be silent; download includes audio",
+    preview_fail: "Online preview is not available here — download to watch",
+    preview_audio: "Listen (no download)",
+    cover_btn: "Save Cover", cover_saving: "Saving…", cover_saved: "Cover Saved",
+    dl_saved_video: "Video Saved", dl_saved_audio: "Audio Saved",
+    dl_saved_music: "Music Saved", dl_saved_images: "Images Saved",
+    cover_fail: "Could not save the cover — right-click the image and save it instead",
+    cover_saved_ok: "Saved to download folder",
+    cover_saved_to: "Cover saved to: ",
+    dl_images: "Download All Original Images (PNG)", dl_music: "Download Music (MP3)",
+    lyrics_btn: "Export Lyrics", lyrics_saved: "Lyrics Saved",
+    type_video: "Video", type_image: "Gallery", type_audio: "Music",
+    cookie_used: (n) => `Parsed with your ${n} sign-in`,
+    views_suffix: " views",
+    unknown: "Unknown",
+    prog_dl: "Downloading…", prog_audio: "Extracting audio…", prog_merge: "Muxing & packaging…",
+    prog_img: "Downloading images…", prog_music: "Extracting music…",
+    elapsed: "Elapsed ",
+    eta_prefix: "ETA ",
+    ready: "File is ready", save_btn: "Show in Folder", dl_fail: "Download failed: ",
+    reveal_fail: "Could not open the folder: ",
+    proxy_ok: (code, ms) => `Connection OK, the platform of this link is reachable (HTTP ${code}, ${ms} ms)`,
+    proxy_bad: (err) => `Connection failed: ${err}`,
+    proxy_test_fail: "Test request failed, make sure the server is running",
+    conn_down: "The page is still open but the connection to the local server dropped (it stopped or is restarting). Press Ctrl+F5 to reload; if that fails, run start.bat again",
+    conn_retry: "Reconnect",
+    sph_title: "WeChat Channels: one-time setup",
+    sph_desc: "Channels only hands out its video URLs inside the WeChat client, so this tool uses the Tencent Yuanbao parse API - a one-time setup of your Yuanbao sign-in is needed (new Chrome/Edge encrypt their cookies so apps can't read them - please copy manually via the 4 steps below; one-time, works forever): 1) open yuanbao.tencent.com in your browser and sign in (free); 2) on that Yuanbao page (not this tool page), press F12 → switch to the Network tab (some browsers show only icons there - click the one that looks like a WiFi signal) → press F5 to reload; 3) click any request in the list (the name column only shows file names - they all belong to yuanbao), find Cookie under Request Headers on the right, right-click → copy value (or copy the whole string after the colon); 4) paste it into the box below and click Save and retry. (The browser buttons below only work on older browsers - if they fail, use the 4 steps)",
+    sph_ph: "Paste the Yuanbao cookie (e.g. hy_user=...; hy_token=...; ...)",
+    sph_save: "Save and retry",
+    sph_saved: "Saved, parsing again…",
+    sph_read_fail: "Read failed: ",
+    sphc_COOKIE_LOCK: "This browser is still running in the background (closing the window doesn't quit it - Windows 'Startup boost' keeps background processes, which lock the cookie database). Quit it from the taskbar icon or end all msedge.exe / chrome.exe processes in Task Manager, then try again",
+    sphc_COOKIE_READ: "Cannot read this browser's cookie database. Use the F12 manual copy method instead",
+    sphc_APP_BOUND: "This browser encrypts cookies with the new app-bound scheme, which cannot be read. Press F12 → Network → reload the page → click any request, then copy the whole Cookie header into the box and save",
+    sphc_NO_LOGIN: "No Yuanbao sign-in found in this browser. Open yuanbao.tencent.com in this browser and sign in first, then try again",
+    sphc_NOT_INSTALLED: "This browser is not installed. Use the browser where you signed in to yuanbao.tencent.com, or copy the cookie manually via F12",
+    sphc_READ_FAIL: "Failed to read the browser's cookies. Use the F12 manual copy method instead",
+    ERR_SPH_COOKIE: "Channels needs a one-time Yuanbao sign-in (see the panel below): sign in at yuanbao.tencent.com, then press F12 → Network → copy the Cookie header of any request into the panel (see the panel notes)",
+    ERR_SPH_PARSE: "Channels parsing failed: the share link may have expired, or the content is unsupported (live replays and paid content cannot be parsed)",
+    ERR_SPH_NET: "Channels API request failed. Check your network or proxy and retry",
+    ERR_X_LOGIN: "X (Twitter)'s guest channel is flaky and sometimes misreports videos as \"unavailable\" (the tool already retried automatically). Wait a few seconds and click Analyze again — it usually works; if it keeps failing, try another proxy node. As a last resort, configure a logged-in X cookie via Paste (one-time, works forever)",
+    err_net: "Request failed: cannot reach the local server. Press Ctrl+F5 to reload the page first; if it still fails, close the console window, run start.bat again and open http://127.0.0.1:8765",
+    err_timeout: "Parse timed out (90s): the site is slow or the parser is stuck. Retry once; if it keeps happening, close the console window and start the app again",
+    ERR_EMPTY_URL: "No link found: the share text must contain a URL (like v.douyin.com/xxxx or an https:// link) — plain text cannot be parsed",
+    net_retry: "Lost connection to the local server, retrying ({n}/{max})… In dev mode the server restarts when code changes — just wait a moment",
+    poll_lost: "Download interrupted: a server restart (dev mode code changes) kills running tasks. Please click download again",
+    err_server_bad: "The server returned invalid data. Restart the server and refresh the page",
+    err_empty: "Please paste a link first", err_task_create: "Failed to create task",
+    err_pick_browser: "Please select a browser (Edge / Chrome / Firefox) in the Cookie dropdown first",
+    ERR_PROXY: "The current proxy cannot reach this platform. Change the proxy in Proxy Settings or click Test to verify",
+    ERR_SIGNIN: "This platform requires sign-in verification. Select a logged-in browser under Cookie and retry",
+    ERR_YT_BOT: "YouTube has flagged your current network's exit IP as a bot (common on shared proxy nodes) - this is IP-level blocking, unrelated to sign-in. In order: 1) Switch to another node in your proxy app and retry - that alone works most of the time; 2) If it still fails, use a browser signed in to YouTube: pick it under Cookie, or click One-click Export to save a cookie file (works forever); 3) Busy shared nodes trigger this easily - a less crowded node / dedicated line works best",
+    ERR_COOKIE_LOCK: "The selected browser's cookies cannot be read (browser is running). The tool automatically retried without cookies and still failed: this platform truly requires sign-in. Fully exit that browser and retry, or double-click export-cookies.bat once for a permanent fix",
+    ERR_COOKIE_ENCRYPT: "Newer Edge / Chrome use App-Bound encryption, so third-party tools cannot decrypt their cookies (an official security limit affecting all downloaders). Two working options: 1) Use Firefox: sign in to the platform there, then One-click Export with Firefox; 2) Install the 'Get cookies.txt LOCALLY' extension in Edge, export a txt file, then click Import",
+    ERR_WEIXIN_SPH: "WeChat Channels content is protected by WeChat client authorization and cannot be extracted anonymously. Tip: if the video is also published on Douyin/Bilibili/YouTube etc., use that platform's link instead",
+    ERR_QISHUI_NO_AUDIO: "The platform serves no audio source for this track (unavailable due to copyright adjustment, or download requires a membership) — no tool can download it. This is not a tool or link problem: check in the Qishui Music app whether the track still plays",
+    ERR_QISHUI_PARSE: "Failed to fetch Qishui Music page data: the share link may be incomplete or expired. Share it again from the Qishui Music app",
+    ERR_IQIYI_PARSE: "This iQIYI link is dead: the short link is redirected to a 404 page (the content may have been deleted, taken down, or the share has expired). Share it again from the iQIYI app to get a fresh link; VIP/paid content requires a member login and is not supported",
+    ERR_FILM_PARSE: "Could not find the video source on this movie page: the play route may be dead, or the link is not a movie detail/play page. Open the movie on the original site, try another play route, then copy the page link again",
+    ERR_FILM_SOURCE: "Failed to fetch the movie video source: the movie server is temporarily unreachable. Please retry later",
+    ERR_UNSUPPORTED: "This platform or link format is not supported yet",
+    ERR_PROXY_NEEDED: "Analysis failed: this platform's media servers cannot be reached directly and no proxy is set. Enter your proxy client's local port or click Auto-detect, then try again",
+    ERR_NETWORK: "Network cannot reach this platform. For sites outside your region this usually means the current proxy node is down or blocked — switch to another proxy node or click Auto-detect; for domestic platforms clear the proxy to connect directly",
+    ERR_NO_MEDIA: "No extractable video / gallery / audio found in this link — it may be a text-only post or the media was deleted. X/Twitter photo posts are parsed through the gallery channel automatically; if the link does contain media yet this persists, the platform API may be temporarily limited — retry later or switch proxy node",
+    ERR_DOUYIN_CDP_TIMEOUT: "Douyin analysis timed out: the page was opened via your local browser but the video data never arrived — a slider CAPTCHA may have appeared, please retry later",
+    ERR_DOUYIN_NO_BROWSER: "Douyin analysis needs Edge or Chrome installed (the page is opened invisibly in the background to fetch data — no sign-in required), but no browser was found. Install Edge/Chrome and retry",
+    ERR_DOUYIN_PARSE: "Could not parse this Douyin post: the link may be expired, the content deleted, or characters were lost when copying (links are case-sensitive). Share it again in the Douyin app and copy the full link",
+    ERR_DOUYIN_NO_WS: "The websocket-client package required for Douyin is missing. Run: pip install websocket-client",
+    ERR_DOUYIN_TAB_FAIL: "Failed to start the Douyin browser channel — please retry; if it persists, close extra Edge/Chrome windows and try again",
+    ERR_PRIVATE: "This content doesn't exist, was deleted, or is private. Check that the original link still opens in your browser",
+    ERR_GENERIC: "Analysis failed",
+    footer1: "For personal learning and research only. Please respect content creators' copyrights and platform terms of service. Do not use commercially.",
+    footer2: "Video / Gallery / Music · © 2026 K-Domain · Open source under the MIT License",
+    hist_title: "History", hist_clear: "Clear",
+    hist_all: "All", hist_empty: "No history yet",
+    hist_types: { video: "Video", image: "Gallery", audio: "Audio" },
+    menu_help: "Help", menu_lang: "Switch to 中文",
+    corner_hint: "Read the top-right Help guide before you start",
+    clear_input: "Clear",
+    menu_dldir: "Download folder", dldir_pick: "Choose new folder", dldir_picking: "Choosing…",
+    dldir_hint: "Videos / images / audio you extract are saved here",
+    dldir_open: "Open download folder",
+    core_label: "Parser core (yt-dlp)",
+    core_hint: "If a site stops parsing, update this — no need to reinstall",
+    core_update: "Check for updates",
+    core_checking: "Checking…",
+    core_latest: "Already up to date · {v}",
+    core_updated: "Downloaded {v} — restart the app to apply (close the console window and reopen)",
+    core_fail: "Update failed: ",
+    core_from_update: "From runtime update (core folder)",
+    core_from_bundled: "Bundled with the app",
+    dldir_ok: "Saved. New downloads will be stored here",
+    dldir_same: "That is already the current folder",
+    dldir_fail: "Save failed: ",
+    dldir_open_fail: "Could not open: ",
+    dir_title: "Choose Download Folder",
+  }
+};
+
+const HELP = {
+  zh: {
+    title: "使用说明与支持范围",
+    version: "版本 v1.1",
+    secs: [
+      {
+        h: "支持情况",
+        body: `
+          <div class="tags">
+            <span class="tag">YouTube</span><span class="tag">TikTok</span><span class="tag">Instagram</span>
+            <span class="tag">Twitter / X</span><span class="tag">Facebook</span><span class="tag">Vimeo</span>
+            <span class="tag">Twitch</span><span class="tag">SoundCloud</span><span class="tag">Bilibili</span>
+            <span class="tag">抖音</span><span class="tag">快手</span><span class="tag">西瓜视频</span>
+            <span class="tag">微博</span><span class="tag">小红书</span><span class="tag">知乎</span>
+            <span class="tag">网易云音乐</span><span class="tag">汽水音乐</span>
+            <span class="tag">电影先生</span><span class="tag">大师兄影视</span><span class="tag">同类影视站</span>
+            <span class="tag">漫画库</span>
+            <span class="tag">微信视频号</span><span class="tag off">Netflix</span><span class="tag off">Disney+</span>
+          </div>
+          <ul>
+            <li>三类素材：<b>视频</b>（MP4，8K/4K/2K/1080P 等按实际画质列出）、<b>图集</b>（导出无水印<b>高清 PNG</b> 图片，逐张存放不打包）、<b>音乐/音频</b>（统一下载为通用 MP3）</li>
+            <li>去水印：优先抓取平台提供的<b>无水印原片/原图</b>（小红书取 ci 原图与 originVideoKey 原片、X 取 name=orig、微博取 /large/、B站去缩放模板、抖音走浏览器取无水印直链，下载时也会跳过带水印的流版本）。若该内容平台只提供带水印的文件，任何工具都无法去除</li>
+            <li>可直接解析：Bilibili、抖音、快手、西瓜、微博、YouTube、TikTok、Instagram、Twitter/X、Facebook、Vimeo、Twitch、SoundCloud 等 1000+ 站点</li>
+            <li>登录验证：默认完全不需要登录，工具先免登录直解；只有少数需要账号的内容（部分 YouTube 视频、私密内容、限流内容、B站高码率）才会自动读取本机浏览器的登录态，仍失败时用「粘贴」复制 Cookie 或点「一键导出」</li>
+            <li>小红书：分享短链（xhslink.cn）或笔记链接都支持，图文笔记导出全部原图，视频笔记直接取无水印原片（比页面播放流更清晰），均无需登录</li>
+            <li>抖音：分享短链（v.douyin.com）或网页链接都支持，视频/图集/音乐均免登录无水印解析 —— 会临时调用本机 Edge/Chrome 以无痕模式在后台打开页面取数据（不打开窗口、不留痕迹、不上传任何内容）</li>
+            <li>微信视频号：分享短链（weixin.qq.com/sph/…）支持 —— 需一次性配置腾讯元宝登录态（页面下方面板按 F12 指引复制 Cookie 粘贴保存，一次配置永久生效）。视频导出平台下发的原画 MP4（视频号码率本身较低、清晰度以平台为准），直播回放与付费内容不支持</li>
+            <li>影视站：电影先生（silidm.com）、大师兄影视（szakb.com）及各类同类影视站都支持 —— 直接复制浏览器地址栏的当前页链接粘贴即可，不用在站内点「分享」再复制链接；详情页、播放页都认。工具会自动识别同类站点（苹果CMS 内核），从各播放线路解析出视频源并合成 MP4 下载（免登录、国内直连、无需代理）。某条线路失效会自动换线路；多集影片可在解析结果的「选择剧集」下拉里选集下载</li>
+            <li>漫画：通用支持各类漫画站（不锁平台）—— 粘贴某一话的<b>阅读页</b>或作品<b>详情页/主页</b>链接即可（不用点分享）；阅读页自动抓取整话全部页图，详情页则在「选择话数」里挑想下载的话，也支持「下载全话」。已实测：漫画库（manhuaku.com.cn）等；页面结构相似的站点大概率直接可用（带反爬盾的站点除外）。逐张导出为高清 PNG，存放在「<b>XXX漫画-XXX话</b>」文件夹里（如「呪術廻戦漫画-第271話」）</li>
+            <li>需要网络代理：取决于你所在网络能否访问该平台 —— 点「自动检测」会自动判断并选出可用方案</li>
+            <li>不支持：DRM 加密内容（Netflix / Disney+ / Prime Video 等）、付费课程与会员专属内容、需实时鉴权的私密直播</li>
+          </ul>`
+      },
+      {
+        h: "使用步骤",
+        body: `
+          <ul>
+            <li>粘贴链接，点「开始解析」——无需登录，工具会先免登录直解，并自动判断这是视频、图集还是音乐</li>
+            <li>如提示无法访问该平台，点「自动检测」自动选出可用网络方案（能直连时优先直连）</li>
+            <li>视频：选择画质档位后点「下载视频」，或点「提取音频」导出 MP3</li>
+            <li>图集：预览缩略图后点「下载全部原图（PNG）」，高清 PNG 逐张存放在以标题命名的文件夹里</li>
+            <li>音乐：直接点「下载音乐 (MP3)」，统一下载为通用 MP3 格式，任何播放器都能放；有歌词的歌会自动内嵌双语歌词（播放器里直接看），也可点「导出歌词」另存 .lrc 文件，纯音乐或平台未提供歌词时则没有歌词可导出</li>
+            <li>完成后文件已经保存在「下载地址」（右上角菜单可修改），点「打开所在文件夹」直接定位</li>
+          </ul>`
+      },
+      {
+        h: "注意事项",
+        body: `
+          <ul>
+            <li>画质取决于原视频：没有 4K / 8K 选项说明该视频本身没有这个清晰度，不是工具的限制</li>
+            <li>高画质通常是画面与音频分离的两条流，工具会自动合并为 MP4，需要多等几秒</li>
+            <li>图集只导出该帖原图，不含评论区图片；全部统一导出为高清 PNG（逐张存放，不打包 ZIP）</li>
+            <li>小图放大：图片（含视频封面 / 图集封面）下载或保存前自动检测尺寸，短边小于 960px 的会先放大并锐化再落盘（LANCZOS 算法，上限 4 倍）——如 440×643 的漫画页会放大到 960×1403</li>
+            <li>「下载音乐 (MP3)」会把音频统一直接转为通用 MP3，避免 m4a / NCM 等格式无法播放</li>
+            <li>下载文件保存在「下载地址」目录（右上角菜单可修改），按标题自动建文件夹；2 小时自动清理的只是内部临时文件，下载好的成品不会被删</li>
+            <li>直播仅支持正在直播或已结束的公开直播，私密直播间无法解析</li>
+            <li>解析失败时先看页面红色提示：文案会直接告诉你是该换代理、该配 Cookie，还是该平台本身不支持</li>
+          </ul>`
+      },
+      {
+        h: "Cookie 与隐私",
+        body: `
+          <ul>
+            <li>Cookie 只保存在本机，仅用于访问你自己要下载的内容，不会上传到任何服务器</li>
+            <li>需要登录态时，最快的办法是「粘贴」：在已登录该网站的浏览器按 F12 复制 Cookie 头，粘进弹窗保存（按弹窗里的图文指引操作，一次配置永久生效）；要一次带走所有网站的登录态就用「一键导出」（Firefox 兼容性最好）</li>
+            <li>Edge / Chrome 新版启用了 App-Bound 加密，第三方无法解密导出：可安装扩展「Get cookies.txt LOCALLY」导出 txt，再点「导入」按钮；或改用 Firefox 一键导出</li>
+            <li>未导出时实时读取浏览器 Cookie 需要该浏览器完全退出（这是浏览器的安全锁定）</li>
+            <li>Cookie 读取失败时，工具会自动改用无 Cookie 方式重试，多数平台不受影响</li>
+            <li>程序完全本地化运行：所有解析、预览与下载的内容只存在你自己的电脑上，不会上传、同步或外泄到任何第三方</li>
+          </ul>`
+      },
+      {
+        h: "合规提醒",
+        body: `<p class="help-note">本工具仅供个人学习与研究使用。请遵守各平台服务条款与所在地法律，尊重内容创作者的版权，勿将下载内容用于商业用途、二次分发或任何侵权场景。因使用本工具产生的一切后果由使用者自行承担。</p>`
+      }
+    ]
+  },
+  en: {
+    title: "Help & Supported Platforms",
+    version: "v1.1",
+    secs: [
+      {
+        h: "What is supported",
+        body: `
+          <div class="tags">
+            <span class="tag">YouTube</span><span class="tag">TikTok</span><span class="tag">Instagram</span>
+            <span class="tag">Twitter / X</span><span class="tag">Facebook</span><span class="tag">Vimeo</span>
+            <span class="tag">Twitch</span><span class="tag">SoundCloud</span><span class="tag">Bilibili</span>
+            <span class="tag">Douyin</span><span class="tag">Kuaishou</span><span class="tag">Weibo</span>
+            <span class="tag">Xiaohongshu</span><span class="tag">Zhihu</span>            <span class="tag">NetEase Music</span><span class="tag">Qishui Music</span>
+            <span class="tag">MovieSir</span><span class="tag">DaShiXiong</span><span class="tag">Movie Sites</span>
+            <span class="tag">Manhuaku (Manga)</span>
+            <span class="tag">WeChat Channels</span><span class="tag off">Netflix</span><span class="tag off">Disney+</span>
+          </div>
+          <ul>
+            <li>Three kinds of media: <b>video</b> (MP4, 8K/4K/2K/1080P etc. as actually available), <b>image galleries</b> (watermark-free, exported as high-quality PNG files), <b>music / audio</b> (downloaded as universal MP3)</li>
+            <li>Watermark-free first: it grabs the platform's clean original media whenever one exists (Xiaohongshu ci originals and originVideoKey source video, X name=orig, Weibo /large/, Bilibili without resize templates, Douyin via the browser channel's clean stream) and skips watermarked stream variants when downloading. If a platform only serves a watermarked file, no tool can remove it</li>
+            <li>Works out of the box: Bilibili, Douyin, Kuaishou, Weibo, YouTube, TikTok, Instagram, Twitter/X, Facebook, Vimeo, Twitch, SoundCloud and 1000+ other sites</li>
+            <li>Sign-in: none needed by default — it parses without login first. Only a few account-gated items (some YouTube videos, private or rate-limited content, high-bitrate Bilibili) fall back to your local browser sign-in; if that fails, use Paste to copy a cookie or One-click export</li>
+            <li>Xiaohongshu: both share links (xhslink.cn) and note links work — image notes export every original image, video notes get the watermark-free source video (higher quality than the page stream), no login required</li>
+            <li>Douyin: share short links (v.douyin.com) and web links both work — video / gallery / music all parse without login and without watermark. It temporarily launches your local Edge/Chrome invisibly (headless, incognito profile) to fetch data — no window, no traces, nothing uploaded</li>
+            <li>WeChat Channels: share short links (weixin.qq.com/sph/…) are supported — a one-time Tencent Yuanbao sign-in is required (follow the F12 guide in the panel below to copy the cookie, paste and save; one-time, works forever). Videos export the platform's original-quality MP4 (Channels bitrate is low by design; quality is what the platform serves). Live replays and paid content are not supported</li>
+            <li>Movie sites: MovieSir (silidm.com), 大师兄影视 / DaShiXiong (szakb.com) and similar sites are all supported — just copy the current page URL from the browser address bar and paste it here; no need to tap "Share" on the site to get a link. Both detail pages and play pages work. Similar sites (macCMS-based) are detected automatically; the tool resolves the video source from the play routes and merges it into an MP4 (no login, direct connection in China, no proxy needed). Dead routes are skipped automatically; for multi-episode titles, pick an episode in the "Select episode" dropdown on the result card before downloading</li>
+            <li>Manga: generic support for most manga sites (not locked to one platform) — paste a chapter <b>reader page</b> or the series <b>detail / home page</b> URL (no need to tap Share). Reader pages grab the whole chapter automatically; detail pages let you pick a chapter in "Select chapter", plus "Download All Chapters". Verified with Manhuaku (manhuaku.com.cn); sites with similar templates usually just work (sites behind an anti-bot shield may not). Saved page by page as high-quality PNG inside the "<b>XXX漫画-XXX话</b>" folder (e.g. 呪術廻戦漫画-第271話)</li>
+            <li>Proxy may be required: depends on whether your network can reach the platform — click Auto-detect and it will find a working route</li>
+            <li>Not supported: DRM-protected content (Netflix / Disney+ / Prime Video), paid courses and members-only content, private live rooms</li>
+          </ul>`
+      },
+      {
+        h: "How to use",
+        body: `
+          <ul>
+            <li>Paste a link and click Analyze — no login needed; it parses directly and detects whether it is a video, a gallery or music</li>
+            <li>If the platform is unreachable, click Auto-detect to pick a working network route (direct connection is preferred)</li>
+            <li>Video: choose a quality tier, then Download video; or Extract audio for MP3</li>
+            <li>Gallery: check the previews, then Download all original images — high-quality PNG files are saved page by page into a title-named folder</li>
+            <li>Music: click Download Music (MP3) - converted to universal MP3 so it plays anywhere; lyrics are auto-embedded when available (bilingual, visible in your player), and Export Lyrics saves a separate .lrc file. Instrumental tracks or tracks without lyrics simply have none to export</li>
+            <li>Click Save to disk when done — files live in the downloads folder</li>
+          </ul>`
+      },
+      {
+        h: "Notes",
+        body: `
+          <ul>
+            <li>Quality depends on the source video: no 4K / 8K option means the video itself has no such resolution</li>
+            <li>High resolutions are usually separate video and audio streams; they are merged into MP4 automatically, which takes a few extra seconds</li>
+            <li>Galleries export the post's original images (not comments), uniformly converted to high-quality PNG (loose files, no ZIP)</li>
+            <li>Small-image upscale: before any image (incl. video / gallery covers) is saved, its size is checked — anything with a short side under 960px is upscaled and sharpened first (LANCZOS, up to 4x) — e.g. a 440×643 manga page becomes 960×1403</li>
+            <li>Download Music (MP3) converts the audio to universal MP3, so formats like m4a / NCM never get in the way</li>
+            <li>Downloaded files are stored in the download folder (change it in the top-right menu), organized into one folder per title; the 2-hour cleanup only removes internal temp files — finished downloads are never deleted</li>
+            <li>Only public live streams (ongoing or ended) are supported; private live rooms cannot be analyzed</li>
+            <li>When analysis fails, read the message on the page: it tells you whether to change the proxy, configure cookies, or whether the platform is simply unsupported</li>
+          </ul>`
+      },
+      {
+        h: "Cookies & privacy",
+        body: `
+          <ul>
+            <li>Cookies stay on your machine and are only used to access the content you want to download — nothing is uploaded to any server</li>
+            <li>When sign-in is needed, the fastest way is Paste: press F12 on a logged-in browser tab of that site, copy the Cookie header and paste it into the dialog (follow the step-by-step guide there; one-time, works forever). To capture every site at once, use One-click export (Firefox has the best compatibility)</li>
+            <li>Newer Edge / Chrome use App-Bound encryption that third-party tools cannot decrypt: install the 'Get cookies.txt LOCALLY' extension, export a txt file and click Import; or use Firefox for One-click export</li>
+            <li>Without an export, reading browser cookies requires that browser to be fully closed (a browser security lock)</li>
+            <li>If cookies cannot be read, the tool automatically retries without them, which works for most platforms</li>
+            <li>Fully local: everything you parse, preview or download stays on your own computer — nothing is uploaded, synced or shared with any third party</li>
+          </ul>`
+      },
+      {
+        h: "Legal notice",
+        body: `<p class="help-note">This tool is for personal learning and research only. Please comply with each platform's terms of service and your local laws, respect creators' copyrights, and do not use downloaded content commercially, redistribute it, or otherwise infringe rights. You are solely responsible for how you use this tool.</p>`
+      }
+    ]
+  }
+};
+
+let lang = localStorage.getItem("vyt_lang") || "zh";
+// ?lang=en / ?lang=zh overrides for one page view (handy for testing/sharing)
+const _urlLang = new URLSearchParams(location.search).get("lang");
+if (_urlLang === "en" || _urlLang === "zh") { lang = _urlLang; localStorage.setItem("vyt_lang", lang); }
+let lastHint = null;   // 提示条状态（setHint / setHintRaw 写入，renderHint 渲染）
+let lastError = null;  // 错误框状态（showErrorSpec 写入，renderError 渲染）
+let lastInfo = null;   // 最近一次解析结果（切换语言时重渲染）
+// All shared state must be declared BEFORE the functions below: savedState()
+// runs at load time (via applyLang -> updateDlBtns) and reads currentUrl, so
+// a later `let` would throw "Cannot access before initialization" (TDZ) and
+// kill the whole script, leaving every button broken.
+let currentUrl = "";   // 最近一次解析的链接（下载/保存都以它为准）
+let sphLastMsg = null; // 视频号面板最后一条错误（applyLang 重译用，必须先于 applyLang() 顶层调用声明）
+// 已保存状态：按链接记录，sessionStorage 持久化（刷新页面/切语言都不丢）
+// 结构 savedMap[url] = { video: <下载时请求的档位高度>, audio: 1, music: 1, images: 1, cover: 1 }
+let savedMap = {};
+function savedState() {
+  return savedMap[currentUrl] || (savedMap[currentUrl] = {});
+}
+function persistSaved() {
+  try { sessionStorage.setItem("vyt_saved", JSON.stringify(savedMap)); } catch (_) {}
+}
+function loadSaved() {
+  try { savedMap = JSON.parse(sessionStorage.getItem("vyt_saved") || "{}") || {}; } catch (_) { savedMap = {}; }
+}
+loadSaved();
+
+// 视频当前选择的档位换算成请求参数（最高档传 0 = 平台最佳）
+function requestedVideoHeight() {
+  return (selectedHeight && selectedHeight === topTierHeight) ? 0 : (selectedHeight || 0);
+}
+
+// 按状态渲染下载按钮（语言切换时也要保持状态）
+function updateDlBtns() {
+  const st = savedState();
+  const map = [["dlVideoBtn", "video", "dl_video", "dl_saved_video"], ["dlAudioBtn", "audio", "dl_audio", "dl_saved_audio"],
+               ["dlMusicBtn", "music", "dl_music", "dl_saved_music"], ["dlImagesBtn", "images", "dl_images", "dl_saved_images"]];
+  map.forEach(([id, kind, key, savedKey]) => {
+    const b = document.getElementById(id);
+    if (!b) return;
+    // 视频按档位判断：同一分辨率下载过才锁定，换档位自动解锁
+    const done = kind === "video"
+      ? (typeof st.video === "number" && st.video === requestedVideoHeight())
+      : !!st[kind];
+    b.textContent = done ? t(savedKey) : t(key);
+    b.disabled = done;
+    b.title = done ? (lang === "zh"
+      ? "已保存到下载地址；换档位或重新解析后可再次下载"
+      : "Saved to the download folder; pick another quality or analyze again to re-download") : "";
+  });
+  updateEpAllBtn();
+}
+
+// 「下载全话/全集」按钮三态：正常 → 下载中（禁用）→ 已下载（禁用）
+// 语言切换时也经 updateDlBtns 走到这里，保持状态文案一致
+let batchBusy = false;   // 批量下载进行中（不持久化，页面刷新即复位）
+function updateEpAllBtn() {
+  const btn = document.getElementById("epAllBtn");
+  if (!btn) return;
+  const isImage = lastInfo && lastInfo.content_type === "image";
+  if (batchBusy) {
+    btn.disabled = true;
+    btn.textContent = t("dl_all_ing");
+    return;
+  }
+  const done = !!savedState().all;
+  btn.disabled = done;
+  btn.textContent = done ? (isImage ? t("dl_all_ch_done") : t("dl_all_ep_done"))
+                         : (isImage ? t("dl_all_ch") : t("dl_all_ep"));
+  btn.title = done ? (lang === "zh"
+    ? "已全部下载到总文件夹；重新解析后可再次下载"
+    : "Everything is saved to the folder; analyze again to re-download") : "";
+}
+
+// 按状态渲染封面按钮（语言切换时也要保持状态）
+function updateCoverBtn() {
+  const btn = document.getElementById("coverBtn");
+  if (!btn) return;
+  const done = !!savedState().cover;
+  btn.textContent = done ? t("cover_saved") : t("cover_btn");
+  btn.disabled = done;
+  btn.title = done ? (lang === "zh" ? "已保存到下载地址；重新解析后可再次保存" : "Saved to the download folder; analyze again to save it once more") : "";
+}
+// 按状态渲染歌词按钮
+function updateLyricsBtn() {
+  const btn = document.getElementById("lyricsBtn");
+  if (!btn) return;
+  const done = !!savedState().lyrics;
+  btn.textContent = done ? t("lyrics_saved") : t("lyrics_btn");
+  btn.disabled = done;
+  btn.title = done ? (lang === "zh" ? "已保存到下载地址；重新解析后可再次导出" : "Saved to the download folder; analyze again to export once more") : "";
+}
+let progressState = null; // 下载进度/结果状态（切换语言时重渲染）
+function t(key) { return I18N[lang][key] ?? I18N.zh[key] ?? key; }
+
+function applyLang() {
+  document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+  document.title = t("doc_title");
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    el.innerHTML = t(el.dataset.i18n);
+  });
+  document.querySelectorAll("[data-i18n-ph]").forEach(el => {
+    el.placeholder = t(el.dataset.i18nPh);
+  });
+  const menuBtn = document.getElementById("menuBtn");
+  if (menuBtn) menuBtn.title = lang === "zh" ? "菜单" : "Menu";
+  renderHint();
+  renderError();
+  renderSphMsg();
+  renderProgress();
+  updateCoverBtn();
+  updateLyricsBtn();
+  updateDlBtns();
+  if (lastInfo) renderResult(lastInfo);
+  renderHelp();
+  renderHistory();
+}
+
+// ---------------- help panel ----------------
+function renderHelp() {
+  const d = HELP[lang] || HELP.zh;
+  document.getElementById("helpTitle").textContent = d.title;
+  document.getElementById("helpVersion").textContent = d.version;
+  document.getElementById("helpBody").innerHTML = d.secs
+    .map(s => `<div class="help-sec"><h4>${s.h}</h4>${s.body}</div>`).join("");
+}
+function openHelp() {
+  renderHelp();
+  document.getElementById("helpMask").classList.add("show");
+  document.body.style.overflow = "hidden";
+}
+function closeHelp() {
+  document.getElementById("helpMask").classList.remove("show");
+  document.body.style.overflow = "";
+}
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") { closeHelp(); closeMenu(); }
+});
+// 支持 http://127.0.0.1:8765/#help 直接打帮助面板
+if (location.hash === "#help") openHelp();
+function toggleLang() {
+  lang = lang === "zh" ? "en" : "zh";
+  localStorage.setItem("vyt_lang", lang);
+  applyLang();
+
+}
+
+// ---------------- 右上角菜单（帮助 / 语言 / 下载地址） ----------------
+function toggleMenu(e) {
+  e.stopPropagation();
+  const pop = document.getElementById("menuPop");
+  const btn = document.getElementById("menuBtn");
+  const show = pop.style.display === "none";
+  pop.style.display = show ? "block" : "none";
+  btn.classList.toggle("open", show);
+}
+function closeMenu() {
+  const pop = document.getElementById("menuPop");
+  if (pop) pop.style.display = "none";
+  const btn = document.getElementById("menuBtn");
+  if (btn) btn.classList.remove("open");
+}
+document.addEventListener("click", e => {
+  const pop = document.getElementById("menuPop");
+  if (pop && pop.style.display !== "none" && !pop.contains(e.target)) closeMenu();
+});
+
+async function loadDlDir() {
+  try {
+    const r = await fetch("/api/get_download_dir");
+    const d = await r.json();
+    if (d.ok) setDlDirText(d.dir);
+  } catch (e) {}
+}
+function setDlDirText(dir) {
+  const el = document.getElementById("dldirCur");
+  if (!el || !dir) return;
+  el.textContent = dir;
+  el.title = dir;               // 路径太长时鼠标悬停可看全
+}
+function showDlDirMsg(text, ok) {
+  const el = document.getElementById("dldirMsg");
+  el.textContent = text;
+  el.className = "menu-dldir-msg " + (ok ? "ok" : "bad");
+  clearTimeout(showDlDirMsg._t);
+  showDlDirMsg._t = setTimeout(() => { el.className = "menu-dldir-msg"; }, 4000);
+}
+
+// ---------------- 解析核心（yt-dlp）更新 ----------------
+// 平台接口一改，旧版 yt-dlp 就会解析失败。打包后的程序没法 pip 升级，
+// 所以这里从 PyPI 下载新版到程序目录的 core/，下次启动优先加载它。
+async function loadCoreVer() {
+  try {
+    const d = await (await fetch("/api/core_status")).json();
+    const el = document.getElementById("coreVer");
+    if (el && d.ok) {
+      el.textContent = "v" + d.version;
+      el.title = d.user_core ? t("core_from_update") : t("core_from_bundled");
+    }
+  } catch (e) {}
+}
+
+async function updateCore() {
+  const btn = document.getElementById("coreBtn");
+  const msg = document.getElementById("coreMsg");
+  if (!btn || btn.disabled) return;
+  const label = btn.querySelector("span");
+  const idle = t("core_update");
+  btn.disabled = true;
+  label.textContent = t("core_checking");
+  msg.textContent = ""; msg.className = "menu-dldir-msg";
+  try {
+    const r = await fetchRetry("/api/update_core", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ proxy: getProxy() })
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      msg.textContent = t("core_fail") + (d.error || "");
+      msg.className = "menu-dldir-msg bad";
+    } else if (d.up_to_date) {
+      msg.textContent = t("core_latest").replace("{v}", d.version);
+      msg.className = "menu-dldir-msg ok";
+    } else {
+      msg.textContent = t("core_updated").replace("{v}", d.version);
+      msg.className = "menu-dldir-msg ok";
+      loadCoreVer();
+    }
+  } catch (e) {
+    msg.textContent = t("core_fail") + e;
+    msg.className = "menu-dldir-msg bad";
+  } finally {
+    btn.disabled = false;
+    label.textContent = idle;
+  }
+}
+// ---------------- 下载地址：调用系统原生文件夹选择框 ----------------
+// Windows = IFileOpenDialog（资源管理器样式）/ macOS = choose folder / Linux = zenity
+// 前端逻辑与平台无关，三个系统走同一段代码
+async function pickDownloadDir() {
+  const btn = document.getElementById("pickDirBtn");
+  const label = btn ? btn.querySelector("span") : null;
+  const textNow = t("dldir_pick");
+  const before = (document.getElementById("dldirCur") || {}).textContent || "";
+  if (label) label.textContent = t("dldir_picking");
+  if (btn) btn.disabled = true;
+  try {
+    const r = await fetch("/api/pick_download_dir", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: t("dir_title") })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      setDlDirText(d.dir);       // 选完立即更新上面的「下载地址」
+      showDlDirMsg(d.dir === before ? t("dldir_same") : t("dldir_ok"), true);
+      loadDlDir();               // 再和服务端核对一次，避免显示与后端不一致
+    } else if (!d.cancelled) {
+      showDlDirMsg(t("dldir_fail") + (d.error || ""), false);
+    }
+  } catch (e) {
+    showDlDirMsg(t("dldir_fail") + e, false);
+  } finally {
+    if (btn) btn.disabled = false;
+    if (label) label.textContent = textNow;
+  }
+}
+async function openDlFolder() {
+  try {
+    await fetch("/api/open_download_dir", { method: "POST" });
+  } catch (e) {
+    showDlDirMsg(t("dldir_open_fail") + e, false);
+  }
+}
+
+// 清空输入框
+function clearInput() {
+  const el = document.getElementById("urlInput");
+  el.value = "";
+  el.focus();
+}
+
+/* ---- 解析记录：localStorage 持久化，按 视频/图集/音频 分类 ---- */
+const HIST_KEY = "vyt_history";
+let histItems = [];
+try { histItems = JSON.parse(localStorage.getItem(HIST_KEY) || "[]"); } catch (e) { histItems = []; }
+let histFilter = "all";
+
+function saveHistory() {
+  try { localStorage.setItem(HIST_KEY, JSON.stringify(histItems.slice(0, 60))); } catch (e) {}
+}
+function addHistory(rec) {
+  histItems = histItems.filter(r => r.url !== rec.url);   // 同链接提到最前
+  histItems.unshift(rec);
+  histItems = histItems.slice(0, 60);
+  saveHistory();
+  renderHistory();
+}
+function removeHistory(url, ev) {
+  if (ev) ev.stopPropagation();
+  histItems = histItems.filter(r => r.url !== url);
+  saveHistory();
+  renderHistory();
+}
+function clearHistory() {
+  histItems = [];
+  saveHistory();
+  renderHistory();
+}
+function histTime(ts) {
+  const d = new Date(ts), now = new Date();
+  const hm = `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  if (d.toDateString() === now.toDateString()) return hm;
+  return `${d.getMonth() + 1}/${d.getDate()} ${hm}`;
+}
+function renderHistory() {
+  const tabs = document.getElementById("histTabs");
+  const list = document.getElementById("histList");
+  if (!tabs || !list) return;
+  const labels = t("hist_types") || {};
+  const tabsDef = [["all", t("hist_all")], ["video", labels.video || "Video"],
+                   ["image", labels.image || "Gallery"], ["audio", labels.audio || "Audio"]];
+  tabs.innerHTML = "";
+  tabsDef.forEach(([key, label]) => {
+    const n = key === "all" ? histItems.length : histItems.filter(r => r.type === key).length;
+    const tab = document.createElement("div");
+    tab.className = "hist-tab" + (histFilter === key ? " active" : "");
+    tab.textContent = label + (n ? " " + n : "");
+    tab.onclick = () => { histFilter = key; renderHistory(); };
+    tabs.appendChild(tab);
+  });
+
+  const shown = histFilter === "all" ? histItems : histItems.filter(r => r.type === histFilter);
+  list.innerHTML = "";
+  if (!shown.length) {
+    const empty = document.createElement("div");
+    empty.className = "hist-empty";
+    empty.textContent = t("hist_empty");
+    list.appendChild(empty);
+    return;
+  }
+  shown.forEach(rec => {
+    const item = document.createElement("div");
+    item.className = "hist-item";
+    item.onclick = () => {
+      document.getElementById("urlInput").value = rec.url;
+      analyze();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    const tEl = document.createElement("div");
+    tEl.className = "t"; tEl.textContent = rec.title;
+    const mEl = document.createElement("div");
+    mEl.className = "m";
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    badge.textContent = ((rec.platform || "").toUpperCase() || "--") + " · " + (labels[rec.type] || rec.type);
+    const time = document.createElement("span");
+    time.textContent = histTime(rec.ts);
+    mEl.appendChild(badge); mEl.appendChild(time);
+    const del = document.createElement("button");
+    del.className = "del"; del.innerHTML = "&#10005;"; del.title = "Delete";
+    del.onclick = (e) => removeHistory(rec.url, e);
+    item.appendChild(tEl); item.appendChild(mEl); item.appendChild(del);
+    list.appendChild(item);
+  });
+}
+renderHistory();
+applyLang();
+loadDlDir();
+loadCoreVer();   // 菜单里的「解析核心」版本
+
+// ---------------- settings ----------------
+// (currentUrl is declared up top with the other shared state — see TDZ note)
+let selectedHeight = 0;
+let topTierHeight = 0;   // 最高档的名义高度：选中它时按「平台最佳」下载
+let selectedEpisodeUrl = "";   // 影视站选集：所选集的播放页链接（空 = 默认第一集）
+let pollTimer = null;
+
+const proxyInput = document.getElementById("proxyInput");
+// 默认留空 = 直连。写死一个代理端口会让没装代理软件的人所有解析都失败。
+proxyInput.value = localStorage.getItem("vyt_proxy") ?? "";
+proxyInput.addEventListener("change", () => localStorage.setItem("vyt_proxy", proxyInput.value.trim()));
+function getProxy() { return proxyInput.value.trim(); }
+function getTargetUrl() { return document.getElementById("urlInput").value.trim(); }
+
+const cookieSelect = document.getElementById("cookieSelect");
+// 登录态每次打开都默认「自动（免登录优先）」，不记忆上次选择，避免误用旧登录态
+cookieSelect.value = "auto";
+function getCookieBrowser() { return cookieSelect.value; }
+
+function showErrorSpec(spec) { lastError = spec; renderError(); }
+function renderError() {
+  const el = document.getElementById("errorMsg");
+  if (!lastError) { el.style.display = "none"; el.textContent = ""; el.title = ""; return; }
+  el.style.display = "block";
+  if (lastError.data) el.textContent = localizeError(lastError.data);
+  else if (lastError.key) el.textContent = t(lastError.key);
+  else el.textContent = lastError.raw || "";
+  // 原始报错只放在悬停提示里，界面保持单一语言
+  el.title = (lastError.data && lastError.data.detail) || "";
+}
+function showError(msg) { showErrorSpec({ raw: msg }); }
+function hideError() { lastError = null; renderError(); }
+
+// 网络请求失败自动重试：开发模式下改代码会重启服务（几秒），
+// 这期间的请求会连接失败，重试即可无缝恢复；服务真没开时重试完才报错。
+const NET_RETRY_MAX = 8, NET_RETRY_DELAY = 1500;
+async function fetchRetry(url, opts) {
+  let notified = false;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch(url, opts);
+      if (notified) hideError();   // 重试成功了，撤掉重试提示
+      return res;
+    } catch (e) {
+      if (attempt >= NET_RETRY_MAX) throw e;
+      notified = true;
+      showError(t("net_retry").replace("{n}", attempt + 1).replace("{max}", NET_RETRY_MAX));
+      await new Promise(r => setTimeout(r, NET_RETRY_DELAY));
+    }
+  }
+}
+
+// ---------------- connection health ----------------
+// A tab can outlive the server (crash / dev-mode restart): the page still
+// renders but every request is refused. Ping in the background and show one
+// clear banner instead of letting each button report a made-up reason.
+let connDown = false;
+function setConnDown(down, detail) {
+  connDown = down;
+  const bar = document.getElementById("connBar");
+  if (!bar) return;
+  bar.hidden = !down;
+  if (down) {
+    document.getElementById("connText").textContent =
+      t("conn_down") + (detail ? "  [" + detail + "]" : "");
+  }
+}
+async function checkConn(manual) {
+  try {
+    const r = await fetch("/api/ping", { cache: "no-store" });
+    // 404 means an older build without /api/ping: the server is alive anyway
+    if (!r.ok && r.status !== 404) throw new Error("HTTP " + r.status);
+    setConnDown(false);
+    if (manual) hideError();
+    return true;
+  } catch (e) {
+    setConnDown(true, (e && e.name ? e.name + ": " + e.message : String(e)));
+    return false;
+  }
+}
+// Three quick attempts, then keep the original browser error so the message
+// describes what really happened instead of blaming the server blindly.
+async function apiFetch(url, opts) {
+  let last;
+  for (let i = 0; i < 3; i++) {
+    try { return await fetch(url, opts); }
+    catch (e) {
+      last = e;
+      if (i < 2) await new Promise(r => setTimeout(r, 400 * (i + 1)));
+    }
+  }
+  throw last;
+}
+setInterval(() => checkConn(false), 15000);
+window.addEventListener("load", () => checkConn(false));
+
+// ---------------- WeChat Channels (视频号) cookie panel ----------------
+function showSphPanel(show) {
+  const p = document.getElementById("sphPanel");
+  if (p) p.style.display = show ? "block" : "none";
+}
+function sphMsg(text, cls) {
+  const el = document.getElementById("sphMsg");
+  if (!el) return;
+  el.textContent = text || "";
+  el.className = "sph-msg" + (cls ? " " + cls : "");
+}
+// which browser's cookie was read successfully (kept while the panel is open)
+let sphActiveBrowser = "";
+function sphBrowserBtns() {
+  return Array.from(document.querySelectorAll("#sphPanel .btn[data-browser]"));
+}
+function setSphBrowserActive(name) {
+  sphActiveBrowser = name || "";
+  sphBrowserBtns().forEach(b => {
+    const on = b.dataset.browser === sphActiveBrowser;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+// backend errors carry a `code`; translate it in the current UI language,
+// falling back to the raw (Chinese) text if the code is unknown
+// error text is localized by the server (lang sent along), so the message is
+// correct in the current UI language regardless of the page script version
+function sphErrText(data) {
+  return (data && data.error) || "";
+}
+// remember the last panel error so applyLang() can re-translate it on switch
+function sphMsgErr(data) {
+  sphLastMsg = { code: (data && data.code) || "", raw: sphErrText(data), cls: "bad" };
+  sphMsg(t("sph_read_fail") + sphLastMsg.raw, "bad");
+}
+function renderSphMsg() {
+  if (!sphLastMsg) return;
+  let body = sphLastMsg.raw;
+  if (sphLastMsg.code) {
+    const s = t("sphc_" + sphLastMsg.code);
+    if (s !== "sphc_" + sphLastMsg.code) body = s;   // client table has this code
+  }
+  sphMsg(t("sph_read_fail") + body, sphLastMsg.cls);
+}
+async function saveSphCookie() {
+  const v = document.getElementById("sphCookieInput").value.trim();
+  if (!v) { sphMsg(t("sph_ph"), "bad"); return; }
+  try {
+    const { ok, data } = await postJSON("/api/sph_cookie", { cookie: v });
+    if (!ok) { sphMsgErr(data); return; }
+    setSphBrowserActive("");            // pasted manually -> no browser is selected
+    sphMsg(t("sph_saved"), "ok");
+    analyze();
+  } catch (e) {
+    sphMsg(t("sph_read_fail") + e.message, "bad");
+  }
+}
+async function sphCookieFromBrowser(browser) {
+  const btns = sphBrowserBtns();
+  const cur = btns.find(b => b.dataset.browser === browser);
+  const prev = sphActiveBrowser;
+  btns.forEach(b => { b.disabled = true; });
+  if (cur) cur.classList.add("busy");
+  sphMsg("…");
+  try {
+    const { ok, data } = await postJSON("/api/sph_cookie_from_browser", { browser, lang });
+    if (!ok) { sphMsgErr(data); setSphBrowserActive(prev); return; }
+    setSphBrowserActive(browser);
+    sphMsg(t("sph_saved"), "ok");
+    analyze();
+  } catch (e) {
+    sphMsg(t("sph_read_fail") + e.message, "bad");
+    setSphBrowserActive(prev);
+  } finally {
+    btns.forEach(b => { b.disabled = false; });
+    if (cur) cur.classList.remove("busy");
+  }
+}
+
+async function postJSON(url, body) {
+  let res;
+  try {
+    res = await fetchRetry(url, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {})
+    });
+  } catch (e) {
+    throw new Error(t("err_net"));
+  }  let data;
+  try {
+    data = await res.json();
+  } catch (e) {
+    throw new Error(t("err_server_bad"));
+  }
+  return { ok: res.ok, data };
+}
+function localizeError(data) {
+  const code = data.code || "ERR_GENERIC";
+  const key = "ERR_" + code;
+  if (I18N[lang][key]) {
+    let msg = t(key);
+    // 视频号类错误：后端带有更具体的原因，附在模板后面便于排查
+    if (String(code).indexOf("SPH_") === 0) {
+      const extra = data.error && data.error !== code ? data.error : (data.detail || "");
+      if (extra && extra !== "no cookie" && msg.indexOf(extra) === -1) {
+        msg += (lang === "en" ? " | detail: " : "｜具体原因：") + extra;
+      }
+    }
+    return msg;
+  }
+  return data.error || data.detail || t("ERR_GENERIC");
+}
+
+// ---------------- proxy status & test ----------------
+function setDot(state) {  // "" | "ok" | "fail"
+  document.getElementById("proxyDot").className = "dot" + (state ? " " + state : "");
+}
+
+// 提示条状态：记录 key（i18n）或 raw 文本，切换语言时重新渲染
+function setHint(key, cls, ...args) {
+  lastHint = { key, args, cls: cls || "" };
+  renderHint();
+}
+function setHintRaw(text, cls) {
+  lastHint = { raw: text, cls: cls || "" };
+  renderHint();
+}
+function setHintData(data, cls) {
+  lastHint = { data, cls: cls || "" };
+  renderHint();
+}
+function renderHint() {
+  if (!lastHint) return;
+  const el = document.getElementById("proxyHint");
+  el.style.display = "block";
+  el.className = "hint" + (lastHint.cls ? " " + lastHint.cls : "");
+  if (lastHint.data) { el.textContent = localizeError(lastHint.data); return; }
+  if (lastHint.raw !== undefined) { el.textContent = lastHint.raw; return; }
+  const v = t(lastHint.key);
+  el.textContent = typeof v === "function" ? v(...lastHint.args) : v;
+}
+
+async function autoDetect() {
+  const btn = document.getElementById("autoDetectBtn");
+  const hasUrl = !!getTargetUrl();
+  btn.disabled = true; btn.textContent = t("detecting");
+  setHintRaw("", "");
+  setDot("");
+  try {
+    const { ok, data } = await postJSON("/api/auto_detect", { url: getTargetUrl() });
+    if (data.ok) {
+      proxyInput.value = data.proxy;
+      localStorage.setItem("vyt_proxy", data.proxy);
+      setDot("ok");
+      if (data.direct) {
+        setHint(hasUrl ? "auto_direct" : "auto_direct_generic", "ok");
+      } else {
+        setHint(hasUrl ? "auto_found" : "auto_found_generic", "ok", data.proxy);
+      }
+    } else {
+      setDot("fail");
+      setHint(hasUrl ? "auto_fail" : "auto_fail_generic", "bad");
+    }
+  } catch (e) {
+    setDot("fail");
+    setHintRaw(e.message, "bad");
+  } finally {
+    btn.disabled = false; btn.textContent = t("auto_btn");
+  }
+}
+
+async function exportCookies() {
+  const browser = getCookieBrowser();
+  const btn = document.getElementById("exportCookieBtn");
+  if (!browser) {
+    setDot("fail");
+    setHint("err_pick_browser", "bad");
+    return;
+  }
+  if (!confirm(t("export_confirm"))) return;
+  btn.disabled = true; btn.textContent = t("exporting");
+  setHintRaw("", "");
+  setDot("");
+  try {
+    const { ok, data } = await postJSON("/api/export_cookies_auto", { browser });
+    if (data.ok) {
+      setDot("ok");
+      setHint("export_done", "ok");
+    } else {
+      setDot("fail");
+      if (data.code) setHintData(data, "bad");
+      else setHintRaw(t("export_fail") + (data.error || ""), "bad");
+    }
+  } catch (e) {
+    // 浏览器被关闭时页面可能失联，提示用户重新打开
+    setDot("");
+    setHintRaw(e.message, "");
+  } finally {
+    btn.disabled = false; btn.textContent = t("export_btn");
+  }
+}
+
+async function importCookies(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const btn = document.getElementById("importCookieBtn");
+  btn.disabled = true; btn.textContent = t("importing_btn");
+  setHintRaw("", "");
+  try {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/import_cookies", { method: "POST", body: fd });
+    const data = await res.json();
+    if (data.ok) {
+      cookieSelect.value = "manual";
+      setDot("ok");
+      setHint("import_ok", "ok", data.cookies || 0);
+    } else {
+      setDot("fail");
+      setHintRaw(t("import_fail") + (data.error || ""), "bad");
+    }
+  } catch (e) {
+    setDot("fail");
+    setHintRaw(t("import_fail") + e.message, "bad");
+  } finally {
+    btn.disabled = false; btn.textContent = t("import_btn");
+    input.value = "";
+  }
+}
+
+// ---------------- 粘贴 Cookie（F12 复制，免文件导入） ----------------
+function openPasteModal() {
+  document.getElementById("pasteMask").classList.add("show");
+}
+function closePasteModal() {
+  document.getElementById("pasteMask").classList.remove("show");
+  document.getElementById("pasteMsg").textContent = "";
+}
+async function savePastedCookie() {
+  const btn = document.getElementById("pasteSaveBtn");
+  const msg = document.getElementById("pasteMsg");
+  const text = document.getElementById("pasteCookieInput").value.trim();
+  if (!text) { msg.textContent = t("paste_empty"); msg.className = "sph-msg bad"; return; }
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/paste_cookies", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, url: currentUrl || document.getElementById("urlInput").value || "" })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      cookieSelect.value = "manual";
+      setDot("ok");
+      setHint("import_ok", "ok", data.cookies || 0);
+      document.getElementById("pasteCookieInput").value = "";
+      closePasteModal();
+    } else {
+      msg.textContent = data.error || t("import_fail");
+      msg.className = "sph-msg bad";
+    }
+  } catch (e) {
+    msg.textContent = t("import_fail") + e.message;
+    msg.className = "sph-msg bad";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function testProxy() {
+  const btn = document.getElementById("testProxyBtn");
+  btn.disabled = true; btn.textContent = t("testing");  setHintRaw("", "");
+  try {
+    const { ok, data } = await postJSON("/api/test_proxy", { proxy: getProxy(), url: getTargetUrl() });
+    setDot(data.ok ? "ok" : "fail");
+    if (data.ok) setHint("proxy_ok", "ok", data.code, data.ms);
+    else setHint("proxy_bad", "bad", data.error);
+  } catch (e) {
+    setDot("fail");
+    setHintRaw(e.message, "bad");
+  } finally {
+    btn.disabled = false; btn.textContent = t("test_btn");
+  }
+}
+
+// ---------------- analyze ----------------
+async function analyze() {
+  const url = document.getElementById("urlInput").value.trim();
+  if (!url) { showErrorSpec({ key: "err_empty" }); return; }
+  hideError();
+  const btn = document.getElementById("analyzeBtn");
+  btn.disabled = true; btn.textContent = t("analyzing");
+  // 影视站封面先行：并行发一个只取「片名+封面」的快照请求（不碰视频源），
+  // 回来就先把结果卡画出来，时长/画质/下载按钮等完整解析完成后补齐
+  let fullSettled = false;
+  fetch("/api/film_cover?url=" + encodeURIComponent(url))
+    .then(r => r.json())
+    .then(d => {
+      if (fullSettled || !d || !d.film || !d.cover) return;
+      renderResult({
+        title: d.title || "", author: d.platform || "", cover: d.cover,
+        platform: d.platform || "", content_type: "video",
+        duration: "", resolutions: [], episodes: [], images: [], _early: true
+      }, false);
+    })
+    .catch(() => {});
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 90000);
+    const res = await apiFetch("/api/analyze", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, proxy: getProxy(), cookie_browser: getCookieBrowser() }),
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    let data;
+    try { data = await res.json(); }
+    catch (e) { showErrorSpec({ key: "err_server_bad" }); return; }
+    if (!res.ok) {
+      fullSettled = true;
+      if (lastInfo && lastInfo._early) {   // 快照卡先出来了但完整解析失败：收起快照卡
+        lastInfo = null;
+        document.getElementById("result").style.display = "none";
+      }
+      showErrorSpec({ data });
+      // 视频号要一次性配置元宝 Cookie：直接把配置面板放出来
+      if (String(data.code || "").startsWith("SPH_")) showSphPanel(true);
+      return;
+    }
+    fullSettled = true;                  // 完整结果已到，快照不再覆盖
+    showSphPanel(false);
+    currentUrl = data.webpage || url;
+    renderResult(data, true);
+    addHistory({
+      url: currentUrl,
+      title: data.title || url,
+      platform: data.platform || "",
+      type: data.content_type || "video",
+      count: data.image_count || 0,
+      ts: Date.now(),
+    });
+  } catch (e) {
+    // 超时（AbortError）和网络不通是两回事，别都甩锅给「服务没开」；
+    // 非超时错误把浏览器原始报错一起显示，避免下次又靠猜。
+    if (lastInfo && lastInfo._early) {
+      lastInfo = null;
+      document.getElementById("result").style.display = "none";
+    }
+    if (e && e.name === "AbortError") {
+      showErrorSpec({ key: "err_timeout" });
+    } else {
+      console.error("[analyze] request failed:", e);
+      showErrorSpec({ raw: t("err_net") + "  [" + (e && e.name) + ": " + (e && e.message) + "]" });
+      checkConn(false);
+    }
+  } finally {
+    fullSettled = true;                  // 失败/超时也不让快照再渲染结果卡
+    btn.disabled = false; btn.textContent = t("analyze_btn");
+  }
+}
+
+// ---------------- render ----------------
+const HEIGHT_MAP = { "8K": 4320, "4K": 2160, "2K": 1440, "1080P": 1080, "720P": 720, "480P": 480, "360P": 360 };
+
+function renderResult(info, isNew) {
+  lastInfo = info;
+  const early = !!info._early;         // 快照先行阶段（完整解析尚未返回）
+  // 新解析时复位该链接的保存状态；语言切换等重渲染不复位
+  if (isNew) { savedMap[currentUrl] = {}; persistSaved(); }
+  const ctype = info.content_type || "video";
+  const isVideo = ctype === "video", isImage = ctype === "image", isAudio = ctype === "audio";
+
+  document.getElementById("result").style.display = "block";
+  document.getElementById("progressBox").style.display = "none";
+
+  document.getElementById("titleText").textContent = info.title || t("unknown");
+  document.getElementById("authorText").textContent = info.author || t("unknown");
+  document.getElementById("authorAvatar").textContent = (info.author || "?")[0].toUpperCase();
+  document.getElementById("viewsText").textContent =
+    info.views ? Number(info.views).toLocaleString() + t("views_suffix") : "";
+  // 自动模式用了哪份登录态，明确告诉用户
+  const usedEl = document.getElementById("cookieUsed");
+  const usedMap = { edge: "Edge", chrome: "Chrome", firefox: "Firefox", manual: t("cookie_manual") };
+  if (info.cookie_used && usedMap[info.cookie_used]) {
+    usedEl.textContent = t("cookie_used")(usedMap[info.cookie_used]);
+    usedEl.style.display = "";
+  } else {
+    usedEl.style.display = "none";
+  }
+  const plat = (info.platform || "").toUpperCase();
+  document.getElementById("platformBadge").textContent =
+    plat + (t("type_" + ctype) ? " · " + t("type_" + ctype) : "");
+  const dur = info.duration && info.duration !== "--:--" ? info.duration : "";
+  document.getElementById("durBadge").style.display = dur ? "" : "none";
+  document.getElementById("durBadge").textContent = dur;
+
+  // 下载前预览：视频点封面播放、图集点图放大、音频一键试听
+  const previewUrl = info.preview_url || info.xhs_video_url || "";
+  const canPreview = (isVideo || isAudio) && !!previewUrl;
+
+  const coverBox = document.getElementById("coverBox");
+  coverBox.style.cursor = info.cover
+    ? (ctype === "image" || canPreview ? "pointer" : "zoom-in")
+    : "";
+  coverBox.onclick = null;
+  document.getElementById("playBtn").style.display = (canPreview && info.cover) ? "" : "none";
+  if (info.cover) {
+    setCoverImg(info.cover, info.webpage);
+    coverBox.onclick = ctype === "image"
+      ? () => openLightbox((info.images || []).map(x => x.url), 0)
+      : (canPreview ? () => openPreview() : () => openLightbox([info.cover], 0));
+  }
+
+  // 视频的预览走「点封面播放」（音乐同理，点封面即试听），不再单独放试听按钮
+
+  // 视频封面 / 音乐封面：可单独保存成图片
+  const coverBtnEl = document.getElementById("coverBtn");
+  coverBtnEl.style.display = ((isVideo || isAudio) && info.cover && !early) ? "" : "none";
+  updateCoverBtn();
+  const lyricsBtnEl = document.getElementById("lyricsBtn");
+  lyricsBtnEl.style.display = (isAudio && info.lyrics) ? "" : "none";
+  updateLyricsBtn();
+
+  // 按内容类型切换操作区（快照先行阶段还没有时长/画质，下载按钮先收起，完整解析后恢复）
+  document.getElementById("resSec").style.display = isVideo ? "" : "none";
+  document.getElementById("dlVideoBtn").style.display = (isVideo && !early) ? "" : "none";
+  document.getElementById("dlAudioBtn").style.display = (isVideo && !early) ? "" : "none";
+  document.getElementById("dlMusicBtn").style.display = isAudio ? "" : "none";
+  document.getElementById("musicHint").style.display = isAudio ? "" : "none";
+  const lyricsHintEl = document.getElementById("lyricsHint");
+  if (isAudio) {
+    // 有歌词讲嵌入/导出的区别；没歌词（纯音乐）说明原因
+    const key = info.lyrics ? "lyrics_hint" : "lyrics_none";
+    lyricsHintEl.setAttribute("data-i18n", key);
+    lyricsHintEl.innerHTML = t(key);
+    lyricsHintEl.style.display = "";
+  } else {
+    lyricsHintEl.style.display = "none";
+  }
+  updateDlBtns();
+
+  // 视频分辨率档位（快照先行阶段显示「解析中」，完整解析后补档位）
+  const list = document.getElementById("resList");
+  list.innerHTML = "";
+  if (isVideo && early) {
+    document.getElementById("resLabel").textContent = t("analyzing");
+  } else if (isVideo) {
+    const tiers = info.resolutions && info.resolutions.length ? info.resolutions : ["720P"];
+    // 档位来自平台实际提供的画质流：最高档即原视频上限，标注出来避免误会
+    const topLabel = tiers[tiers.length - 1] === "原画" ? t("res_original") : tiers[tiers.length - 1];
+    document.getElementById("resLabel").textContent =
+      t("sec_res") + " · " + t("res_max")(topLabel);
+    // 默认永远选最高档（原画质），用户可手动降档；不沿用上一条视频的选择
+    selectedHeight = HEIGHT_MAP[tiers[tiers.length - 1]] || 0;
+    topTierHeight = selectedHeight;
+    tiers.forEach((label) => {
+      const chip = document.createElement("div");
+      const h = HEIGHT_MAP[label] || 0;
+      chip.className = "chip" + (h === selectedHeight ? " active" : "");
+      chip.dataset.h = h;
+      chip.textContent = label === "原画" ? t("res_original") : label + (label === "1080P" ? " (1K)" : "");
+      list.appendChild(chip);
+    });
+    list.onclick = (e) => {
+      const chip = e.target.closest(".chip");
+      if (chip) {
+        list.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+        chip.classList.add("active");
+        selectedHeight = parseInt(chip.dataset.h || "0", 10) || 0;
+        // 换档位后按钮状态按新档位重新判断（同档位下载过才保持锁定）
+        updateDlBtns();
+      }
+    };
+  }
+
+  // 影视站多集影片：自绘剧集下拉（原生 select 弹层滚动条无法定制），预览跟随选集
+  const epSec = document.getElementById("epSec");
+  const epBtn = document.getElementById("epBtn");
+  const epLabel = document.getElementById("epLabel");
+  const epPop = document.getElementById("epPop");
+  selectedEpisodeUrl = "";
+  epPop.classList.remove("open");
+  const eps = ((isVideo || isImage) && Array.isArray(info.episodes)) ? info.episodes : [];
+  const epAllBtn = document.getElementById("epAllBtn");
+  if (eps.length > 1) {
+    epPop.innerHTML = "";
+    // 漫画（图集）是「选话」：区块标签与批量按钮都换成漫画措辞
+    const secLabel = document.querySelector("#epSec .section-label");
+    if (secLabel) secLabel.textContent = isImage ? t("sec_ep_manga") : t("sec_ep");
+    updateEpAllBtn();   // 按状态渲染：正常 / 下载中 / 已下载全话(集)
+    eps.forEach((ep) => {
+      const it = document.createElement("div");
+      it.className = "ep-item";
+      it.textContent = ep.label || ep.url;
+      it.onclick = () => epPick(ep, it);
+      epPop.appendChild(it);
+    });
+    epLabel.textContent = eps[0].label || "";
+    // fixed 定位弹层：贴着按钮下方弹出，下方空间不足时向上翻，滚动/缩放跟随
+    const placeEpPop = () => {
+      const r = epBtn.getBoundingClientRect();
+      epPop.style.left = r.left + "px";
+      epPop.style.width = r.width + "px";
+      const below = window.innerHeight - r.bottom - 8;   // 下方可用空间
+      const above = r.top - 8;                            // 上方可用空间
+      if (below >= 260 || above < 120 || below >= above) {
+        // 下方放得下（或上方更放不下/下方空间更大）：向下弹
+        epPop.style.top = (r.bottom + 4) + "px";
+        epPop.style.bottom = "";
+        epPop.style.maxHeight = Math.min(240, Math.max(below, 120)) + "px";
+      } else {                                            // 下方不够：向上翻
+        epPop.style.top = "";
+        epPop.style.bottom = (window.innerHeight - r.top + 4) + "px";
+        epPop.style.maxHeight = Math.min(240, above) + "px";
+      }
+    };
+    epBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (epPop.classList.contains("open")) { epPop.classList.remove("open"); return; }
+      placeEpPop();
+      epPop.classList.add("open");
+    };
+    if (!epBtn.dataset.bound) {          // 点弹层外面收起 + 滚动跟随（只绑一次）
+      epBtn.dataset.bound = "1";
+      document.addEventListener("click", (e) => {
+        if (!document.getElementById("epSelect").contains(e.target)) epPop.classList.remove("open");
+      });
+      window.addEventListener("scroll", () => {
+        if (epPop.classList.contains("open")) placeEpPop();
+      }, true);
+      window.addEventListener("resize", () => {
+        if (epPop.classList.contains("open")) placeEpPop();
+      });
+    }
+    epSec.style.display = "";
+  } else {
+    epPop.innerHTML = "";
+    epSec.style.display = "none";
+    if (epAllBtn) epAllBtn.textContent = "";
+  }
+
+  // 图集预览（渲染逻辑在 renderImgGrid，选话切换时也会单独调用）
+  renderImgGrid(info);
+}
+
+// 封面图渲染（renderResult 与漫画选话换封面共用）：代理优先级与失败兜底逻辑一致
+function setCoverImg(coverUrl, webpage) {
+  const coverBox = document.getElementById("coverBox");
+  const nocover = coverBox.querySelector(".no-cover");
+  coverBox.querySelectorAll("img").forEach(i => i.remove());
+  nocover.style.display = "";
+  nocover.textContent = t("no_cover");
+  if (!coverUrl) return;
+  const img = document.createElement("img");
+  img.referrerPolicy = "no-referrer";
+  img.onload = () => { nocover.style.display = "none"; };
+  // 填了代理就优先走本地代理（浏览器自身不走代理，直连会被墙）；
+  // 否则先直连，失败再走代理；两条都失败 => 明确提示网络受限
+  const viaProxy = imgProxyUrl(coverUrl, webpage);
+  let useProxyFirst = !!getProxy();
+  try {
+    // 豆瓣图床严格防盗链（浏览器直连必 403），直接走本地代理
+    if (/(^|\.)doubanio\.com$/.test(new URL(coverUrl, location.href).hostname))
+      useProxyFirst = true;
+  } catch (_) {}
+  img.onerror = () => {
+    const tries = img.dataset.tries ? Number(img.dataset.tries) : 0;
+    img.dataset.tries = String(tries + 1);
+    if (tries === 0) {
+      img.src = img.src.indexOf("/api/image_proxy") === -1 ? viaProxy : coverUrl;
+      return;
+    }
+    img.remove();
+    nocover.style.display = "";
+    nocover.textContent = t("cover_net_fail");
+  };
+  img.dataset.tries = "0";
+  img.src = useProxyFirst ? viaProxy : coverUrl;
+  coverBox.prepend(img);
+}
+
+// 图集预览（渲染逻辑在 renderImgGrid，选话切换时也会单独调用）
+function renderImgGrid(info) {
+  const isImage = (info.content_type || "video") === "image";
+  document.getElementById("imgSec").style.display = isImage ? "" : "none";
+  document.getElementById("dlImagesBtn").style.display = isImage ? "" : "none";
+  const grid = document.getElementById("imgGrid");
+  grid.innerHTML = "";
+  document.getElementById("imgCountText").textContent =
+    isImage ? t("img_count")(info.image_count || (info.images || []).length) : "";
+  if (isImage) {
+    const shown = (info.images || []).slice(0, 8);
+    const urls = (info.images || []).map(x => x.url);
+    shown.forEach((im, idx) => {
+      const cell = document.createElement("div");
+      cell.className = "img-cell";
+      cell.style.cursor = "zoom-in";
+      cell.onclick = () => openLightbox(urls, idx);
+      const img = document.createElement("img");
+      img.loading = "lazy";
+      img.referrerPolicy = "no-referrer";
+      img.src = imgProxyUrl(im.url);
+      img.onerror = () => { img.onerror = null; img.src = im.url; };
+      cell.appendChild(img);
+      grid.appendChild(cell);
+    });
+    const rest = (info.image_count || 0) - shown.length;
+    if (rest > 0) {
+      const cell = document.createElement("div");
+      cell.className = "img-cell";
+      cell.style.cursor = "zoom-in";
+      // 底下铺下一张真实图片，上面盖半透明灰遮罩，既能看到图片内容又突出 +N
+      const nextIm = urls[shown.length] ? { url: urls[shown.length] } : null;
+      if (nextIm) {
+        const img = document.createElement("img");
+        img.loading = "lazy";
+        img.referrerPolicy = "no-referrer";
+        img.src = imgProxyUrl(nextIm.url);
+        img.onerror = () => { img.onerror = null; img.src = nextIm.url; };
+        cell.appendChild(img);
+      }
+      const more = document.createElement("span");
+      more.className = "more";
+      more.textContent = `+${rest}`;
+      cell.appendChild(more);
+      cell.onclick = () => openLightbox(urls, Math.min(shown.length, urls.length - 1));
+      grid.appendChild(cell);
+    }
+  }
+}
+
+/* ---- 全屏灯箱：滚轮/双指缩放、拖动平移、背景滚动锁定 ---- */
+let lbList = [], lbIdx = 0;
+let lbMode = "image";                  // image | video | audio
+let lbHls = null;                      // hls.js 实例（m3u8 分片流预览用）
+function loadHls(cb) {                 // 按需加载内置的 hls.js（vendor 内置，无外网依赖）
+  if (window.Hls) { cb(window.Hls); return; }
+  const s = document.createElement("script");
+  s.src = "/vendor/hls.light.min.js";
+  s.onload = () => cb(window.Hls || null);
+  s.onerror = () => cb(null);
+  document.head.appendChild(s);
+}
+let lbScale = 1, lbTx = 0, lbTy = 0;   // 当前缩放与平移（相对适配尺寸）
+let lbDrag = null, lbPinch = null, lbMoved = false, lbOpenedAt = 0;
+const LB_MIN = 1, LB_MAX = 8;
+
+function lbImgEl() { return document.getElementById("lbImg"); }
+function lbBox() { return document.getElementById("lightbox"); }
+function lbIsOpen() { const el = lbBox(); return !!el && el.style.display !== "none"; }
+
+/* 应用变换：动画只给按钮/键盘用，滚轮和拖动时禁用过渡避免滞后 */
+function lbApply(animate) {
+  const img = lbImgEl(); if (!img) return;
+  img.style.transition = animate ? "transform .16s ease-out" : "none";
+  img.style.transform = "translate3d(" + lbTx + "px," + lbTy + "px,0) scale(" + lbScale + ")";
+  img.style.cursor = lbScale > 1.01 ? (lbDrag ? "grabbing" : "grab") : "zoom-in";
+  const showNav = lbMode === "image" && lbList.length > 1 && lbScale <= 1.01;
+  document.querySelectorAll(".lb-nav").forEach(n => { n.style.visibility = showNav ? "" : "hidden"; });
+}
+function lbReset() { lbScale = 1; lbTx = 0; lbTy = 0; lbApply(true); }
+
+/* 限制平移范围：放大后的图边缘最多留 12% 在视口内 */
+function lbClampPan() {
+  if (lbScale <= 1.001) { lbTx = 0; lbTy = 0; return; }
+  const img = lbImgEl(); if (!img) return;
+  const w = img.clientWidth * lbScale, h = img.clientHeight * lbScale;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const maxX = Math.max(0, (w - vw) / 2 + vw * 0.12);
+  const maxY = Math.max(0, (h - vh) / 2 + vh * 0.12);
+  lbTx = Math.min(maxX, Math.max(-maxX, lbTx));
+  lbTy = Math.min(maxY, Math.max(-maxY, lbTy));
+}
+
+/* 以屏幕点 (cx, cy) 为锚点缩放 factor 倍（图片在 flex 容器里居中，中心 = 视口中心 + 平移量） */
+function lbZoomAt(factor, cx, cy) {
+  const prev = lbScale;
+  const next = Math.min(LB_MAX, Math.max(LB_MIN, prev * factor));
+  if (Math.abs(next - prev) < 1e-4) return;
+  const ox = cx - (window.innerWidth / 2 + lbTx);
+  const oy = cy - (window.innerHeight / 2 + lbTy);
+  const k = next / prev;
+  lbTx = ox * (1 - k) + lbTx;      // 让光标下的像素保持不动
+  lbTy = oy * (1 - k) + lbTy;
+  lbScale = next;
+  if (lbScale <= LB_MIN + 0.001) { lbTx = 0; lbTy = 0; }
+  lbClampPan();
+  lbApply(false);   // 滚轮缩放即时跟手，不加过渡
+}
+
+function openLightbox(list, idx) {
+  if (!list || !list.length) return;
+  lbMode = "image";
+  lbList = list; lbIdx = Math.max(0, Math.min(idx, list.length - 1));
+  const lb = lbBox();
+  lbBind();
+  // 从视频/音频模式切回图片：停掉播放器并复原图片与控制按钮
+  lbStopMedia();
+  lb.style.display = "flex";
+  lbLockScroll(true);
+  lbScale = 1; lbTx = 0; lbTy = 0;     // 每次打开都从适配大小开始
+  lbOpenedAt = Date.now();
+  lbImgEl().style.display = "";
+  document.querySelectorAll(".lb-nav").forEach(n => { n.style.display = ""; });
+  document.getElementById("lbCount").style.display = "";
+  lbRender();
+  document.addEventListener("keydown", lbKeys);
+}
+
+/* 视频/音频在线预览：直接播平台流，无需先下载 */
+function previewProxyUrl(u, ref) {
+  const q = new URLSearchParams({
+    url: u, ref: ref || "", proxy: getProxy(), cookie: getCookieBrowser()
+  });
+  return "/api/video_preview?" + q.toString();
+}
+/* 影视站选集：更新选中态 + 让预览跟随切换（弹层开着就无缝换流） */
+async function epPick(ep, optEl) {
+  selectedEpisodeUrl = ep.url || "";
+  const labelEl = document.getElementById("epLabel");
+  if (labelEl) labelEl.textContent = ep.label || ep.url || "";
+  const pop = document.getElementById("epPop");
+  if (pop) {
+    pop.classList.remove("open");
+    pop.querySelectorAll(".ep-item").forEach(n => n.classList.toggle("active", n === optEl));
+  }
+  if (!selectedEpisodeUrl) return;
+  // 漫画（图集）选话：拉取所选话的页图刷新预览网格（下载走 play_url 同一链接）
+  if (lastInfo && lastInfo.content_type === "image") {
+    try {
+      const res = await fetchRetry("/api/manga_preview?url=" + encodeURIComponent(selectedEpisodeUrl));
+      const data = await res.json();
+      if (!res.ok) return;
+      lastInfo.images = data.images || [];
+      lastInfo.image_count = data.image_count || 0;
+      // 封面跟随所选话：换成这一话的第一页（同时更新点击灯箱范围）
+      const firstPage = (lastInfo.images || [])[0];
+      if (firstPage && firstPage.url) {
+        lastInfo.cover = firstPage.url;
+        setCoverImg(lastInfo.cover, lastInfo.webpage);
+        document.getElementById("coverBox").onclick =
+          () => openLightbox(lastInfo.images.map(x => x.url), 0);
+      }
+      renderImgGrid(lastInfo);
+    } catch (e) { /* 预览刷新失败不打断选集，下载不受影响 */ }
+    return;
+  }
+  try {
+    const res = await fetchRetry("/api/film_preview?url=" + encodeURIComponent(selectedEpisodeUrl));
+    const data = await res.json();
+    if (!res.ok || !data.preview_url) return;
+    lastInfo.preview_url = data.preview_url;
+    const lb = lbBox();
+    if (lbMode === "video" && lb.style.display === "flex") {
+      openPreview();                     // 内部会先停掉旧流再播新集
+    }
+  } catch (e) { /* 预览解析失败不打断选集，下载不受影响 */ }
+}
+function openPreview() {
+  const info = lastInfo || {};
+  const u = info.preview_url || info.xhs_video_url || "";
+  if (!u) { showErrorSpec({ key: "preview_fail" }); return; }
+  hideError();
+  const kind = info.content_type === "audio" ? "audio" : "video";
+  lbMode = kind;
+  const lb = lbBox();
+  lbBind();
+  lbStopMedia();
+  lb.style.display = "flex";
+  lbLockScroll(true);
+  lbScale = 1; lbTx = 0; lbTy = 0;
+  lbOpenedAt = Date.now();
+  const img = lbImgEl();
+  img.style.display = "none"; img.removeAttribute("src");
+  document.querySelectorAll(".lb-nav").forEach(n => { n.style.display = "none"; });
+  document.getElementById("lbCount").style.display = "none";
+  const el = document.getElementById(kind === "audio" ? "lbAudio" : "lbVideo");
+  el.style.display = "block";   // 内联样式控制显隐（CSS 里不再写 display:none）
+  // 小红书原片常是 HEVC（浏览器未必能播）：播不了自动退回 h264 转码流
+  el.dataset.fb = info.preview_fallback_url
+    ? previewProxyUrl(info.preview_fallback_url, info.webpage) : "";
+  el.onerror = () => {
+    const fb = el.dataset.fb || "";
+    if (fb && el.src !== fb) {
+      el.dataset.fb = "";
+      el.src = fb;
+      el.play().catch(() => {});
+    }
+  };
+  el.src = previewProxyUrl(u, info.webpage);
+  if (/\.m3u8(\?|$)/i.test(u)) {
+    // HLS 分片流（影视站等）：原生 <video> 播不了，交给 hls.js 经本地代理取流
+    el.removeAttribute("src");
+    loadHls((Hls) => {
+      if (lbMode !== "video") return;          // 弹层已关闭/切换，别再挂流
+      if (!Hls) { showErrorSpec({ key: "preview_fail" }); return; }
+      if (Hls.isSupported()) {
+        lbHls = new Hls({ maxBufferLength: 30 });
+        lbHls.on(Hls.Events.ERROR, (_ev, d) => {
+          if (d.fatal) showErrorSpec({ key: "preview_fail" });
+        });
+        lbHls.loadSource(previewProxyUrl(u, info.webpage));
+        lbHls.attachMedia(el);
+      } else {
+        el.src = previewProxyUrl(u, info.webpage);   // Safari 原生支持 HLS
+      }
+      el.play().catch(() => {});
+    });
+  }
+  if (kind === "video") {
+    // DASH 平台（B站等）画面与声音是两条流：额外播一条音频并与画面同步
+    const au = document.getElementById("lbAudio");
+    if (info.preview_audio_url) {
+      au.src = previewProxyUrl(info.preview_audio_url, info.webpage);
+      au.dataset.hidden = "1";
+      bindAvSync(el, au);
+    } else {
+      au.removeAttribute("src");
+    }
+  }
+  el.play().catch(() => {});   // 浏览器可能拦截自动播放，控件里手动点即可
+  const note = document.getElementById("lbNote");
+  if (kind === "video" && info.preview_silent && !info.preview_audio_url) {
+    note.textContent = t("preview_silent"); note.style.display = "";
+  } else {
+    note.style.display = "none";
+  }
+  document.addEventListener("keydown", lbKeys);
+}
+
+/* 画面 + 独立音频流的同步：播放/暂停/拖动/倍速/音量全部跟随视频 */
+function bindAvSync(video, audio) {
+  if (video.dataset.avBound) return;
+  video.dataset.avBound = "1";
+  const sync = (force) => {
+    if (force || Math.abs(video.currentTime - audio.currentTime) > 0.3) {
+      try { audio.currentTime = video.currentTime; } catch (_) {}
+    }
+  };
+  video.addEventListener("play", () => { sync(true); audio.play().catch(() => {}); });
+  video.addEventListener("playing", () => sync(true));
+  video.addEventListener("pause", () => audio.pause());
+  video.addEventListener("seeked", () => sync(true));
+  video.addEventListener("timeupdate", () => sync(false));
+  video.addEventListener("ratechange", () => { audio.playbackRate = video.playbackRate; });
+  video.addEventListener("volumechange", () => {
+    audio.volume = video.volume;
+    audio.muted = video.muted;
+  });
+  video.addEventListener("ended", () => audio.pause());
+}
+function lbStopMedia() {
+  if (lbHls) { try { lbHls.destroy(); } catch (_) {} lbHls = null; }
+  [document.getElementById("lbVideo"), document.getElementById("lbAudio")].forEach(el => {
+    if (!el) return;
+    el.onerror = null;
+    el.dataset.fb = "";
+    el.pause();
+    el.removeAttribute("src");
+    try { el.load(); } catch (_) {}
+    el.style.display = "none";
+  });
+  const note = document.getElementById("lbNote");
+  if (note) note.style.display = "none";
+}
+function closeLightbox() {
+  const lb = lbBox(); if (!lb) return;
+  lb.style.display = "none";
+  lbStopMedia();
+  lbLockScroll(false);
+  document.removeEventListener("keydown", lbKeys);
+  lbDrag = null; lbPinch = null;
+}
+function lbRender() {
+  lbScale = 1; lbTx = 0; lbTy = 0;
+  lbReset();
+  const img = lbImgEl();
+  const u = lbList[lbIdx];
+  img.onerror = () => { img.onerror = null; img.src = u; };
+  img.src = imgProxyUrl(u);
+  document.getElementById("lbCount").textContent = (lbIdx + 1) + " / " + lbList.length;
+}
+function lbStep(d) {
+  if (lbList.length < 2) return;
+  lbIdx = (lbIdx + d + lbList.length) % lbList.length;
+  lbRender();
+}
+function lbKeys(e) {
+  if (!lbIsOpen()) return;
+  if (e.key === "Escape") { closeLightbox(); return; }
+  if (lbMode !== "image") return;   // 播放中不响应缩放/翻页快捷键
+  if (e.key === "ArrowLeft") { e.preventDefault(); lbStep(-1); }
+  else if (e.key === "ArrowRight") { e.preventDefault(); lbStep(1); }
+  else if (e.key === "+" || e.key === "=") { e.preventDefault(); lbZoomAt(1.4, window.innerWidth / 2, window.innerHeight / 2); }
+  else if (e.key === "-" || e.key === "_") { e.preventDefault(); lbZoomAt(1 / 1.4, window.innerWidth / 2, window.innerHeight / 2); }
+  else if (e.key === "0") { e.preventDefault(); lbReset(); }
+}
+
+/* 背景滚动锁定：html/body 禁止滚动，并补偿滚动条宽度避免页面跳动 */
+function lbLockScroll(on) {
+  const html = document.documentElement, body = document.body;
+  if (on) {
+    const sw = window.innerWidth - html.clientWidth;
+    body.dataset.lbPad = body.style.paddingRight || "";
+    if (sw > 0) body.style.paddingRight = sw + "px";
+    html.classList.add("lb-open");
+    body.classList.add("lb-open");
+  } else {
+    html.classList.remove("lb-open");
+    body.classList.remove("lb-open");
+    body.style.paddingRight = body.dataset.lbPad || "";
+  }
+}
+
+/* 事件只绑定一次，且在灯箱打开时绑定（元素一定已存在） */
+function lbBind() {
+  const lb = lbBox();
+  if (!lb || lb.dataset.bound) return;
+  lb.dataset.bound = "1";
+
+  // 滚轮：仅灯箱内生效，阻止背景滚动
+  lb.addEventListener("wheel", (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (lbMode !== "image") return;    // 视频/音频模式只锁背景，不缩放
+    const step = e.deltaMode === 1 ? 0.06 : 0.0022;   // 行模式 / 像素模式
+    let factor = Math.exp(-e.deltaY * step);
+    factor = Math.min(1.35, Math.max(1 / 1.35, factor));   // 单次事件最多 1.35x，快速滚动不跳档
+    lbZoomAt(factor, e.clientX, e.clientY);
+  }, { passive: false });
+
+  // 双击：1x <-> 2.5x（刚打开时的双击来自“点开图片”那一下，忽略，避免一进来就是放大状态）
+  lb.addEventListener("dblclick", (e) => {
+    if (lbMode !== "image") return;
+    if (Date.now() - lbOpenedAt < 450) return;
+    if (e.target.closest(".lb-close, .lb-nav")) return;
+    e.preventDefault();
+    if (lbScale > 1.01) lbReset();
+    else lbZoomAt(2.5 / lbScale, e.clientX, e.clientY);
+  });
+
+  // 拖动平移（在整层上监听，鼠标滑出图片范围也能继续拖）
+  lb.addEventListener("pointerdown", (e) => {
+    if (lbMode !== "image") return;
+    if (e.button !== 0) return;
+    if (e.target.closest(".lb-close, .lb-nav")) return;
+    if (lbScale <= 1.01) return;
+    e.preventDefault();
+    lbDrag = { x: e.clientX, y: e.clientY, tx: lbTx, ty: lbTy };
+    lbMoved = false;
+    try { lb.setPointerCapture(e.pointerId); } catch (_) {}
+    lbApply(false);
+  });
+  lb.addEventListener("pointermove", (e) => {
+    if (!lbDrag) return;
+    const dx = e.clientX - lbDrag.x, dy = e.clientY - lbDrag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 3) lbMoved = true;
+    lbTx = lbDrag.tx + dx;
+    lbTy = lbDrag.ty + dy;
+    lbClampPan();
+    lbApply(false);
+  });
+  ["pointerup", "pointercancel"].forEach(ev => lb.addEventListener(ev, () => {
+    if (!lbDrag) return;
+    lbDrag = null;
+    lbApply(true);
+    if (lbMoved) setTimeout(() => { lbMoved = false; }, 0);  // 拖动结束不当作点击背景
+  }));
+
+  // 点击空白处关闭（拖动过则忽略）
+  lb.addEventListener("click", (e) => {
+    if (lbMoved) return;
+    if (e.target === lb) closeLightbox();
+  });
+
+  // 触屏：双指捏合缩放 + 单指（放大后）平移
+  lb.addEventListener("touchstart", (e) => {
+    if (lbMode !== "image") return;
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const [a, b] = e.touches;
+      lbPinch = { dist: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) };
+      lbDrag = null;
+    } else if (e.touches.length === 1 && lbScale > 1.01) {
+      const t = e.touches[0];
+      lbDrag = { x: t.clientX, y: t.clientY, tx: lbTx, ty: lbTy };
+    }
+  }, { passive: false });
+  lb.addEventListener("touchmove", (e) => {
+    if (lbMode !== "image") return;
+    if (e.touches.length === 2 && lbPinch) {
+      e.preventDefault();
+      const [a, b] = e.touches;
+      const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+      const cx = (a.clientX + b.clientX) / 2, cy = (a.clientY + b.clientY) / 2;
+      lbZoomAt(dist / lbPinch.dist, cx, cy);
+      lbPinch.dist = dist;
+    } else if (e.touches.length === 1 && lbDrag) {
+      e.preventDefault();
+      const t = e.touches[0];
+      lbTx = lbDrag.tx + (t.clientX - lbDrag.x);
+      lbTy = lbDrag.ty + (t.clientY - lbDrag.y);
+      lbClampPan();
+      lbApply(false);
+    }
+  }, { passive: false });
+  ["touchend", "touchcancel"].forEach(ev => lb.addEventListener(ev, (e) => {
+    if (e.touches.length < 2) lbPinch = null;
+    if (e.touches.length === 0) { lbDrag = null; lbApply(true); }
+  }));
+}
+
+function imgProxyUrl(u, ref) {
+  const q = new URLSearchParams({ url: u, ref: ref || "", proxy: getProxy(), cookie: getCookieBrowser() });
+  return "/api/image_proxy?" + q.toString();
+}
+
+/* 视频封面单独保存：经本地代理取图（绕过防盗链），再以原图文件名下载 */
+function originalCoverUrl(u) {
+  try {
+    const url = new URL(u, location.href);
+    if (/(^|\.)pbs\.twimg\.com$/.test(url.hostname)) {
+      url.searchParams.set("name", "orig");   // X/Twitter 取未压缩原图
+      return url.toString();
+    }
+    // YouTube：hq/mq/sd default 一律升级为 maxres（404 时调用方会回退原地址）
+    if (/(^|\.)ytimg\.com$/.test(url.hostname)) {
+      const m = /\/vi\/([^/]+)\//.exec(url.pathname);
+      if (m) { url.pathname = "/vi/" + m[1] + "/maxresdefault.jpg"; url.search = ""; return url.toString(); }
+    }
+    // Bilibili：去掉 @xxxw_xxxh 缩放后缀，取原始尺寸
+    if (/(^|\.)hdslb\.com$/.test(url.hostname)) {
+      url.pathname = url.pathname.replace(/@.*$/, "");
+      return url.toString();
+    }
+  } catch (_) {}
+  return u;
+}
+// 解码图片 blob 测像素面积（测不出的返回 0，由调用方兜底）
+async function imageBlobArea(blob) {
+  try {
+    const bmp = await createImageBitmap(blob);
+    const area = bmp.width * bmp.height;
+    if (bmp.close) bmp.close();
+    return area;
+  } catch (_) {
+    return new Promise(resolve => {
+      try {
+        const u = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => { resolve(img.naturalWidth * img.naturalHeight); URL.revokeObjectURL(u); };
+        img.onerror = () => { resolve(0); URL.revokeObjectURL(u); };
+        img.src = u;
+      } catch (_) { resolve(0); }
+    });
+  }
+}
+
+async function saveCover() {
+  const info = lastInfo || {};
+  if (!info.cover) return;
+  if (savedState().cover) return;   // 已保存过，防止重复保存
+  hideError();
+  const btn = document.getElementById("coverBtn");
+  let savedOk = false;
+  btn.disabled = true; btn.textContent = t("cover_saving");
+  try {
+    // 候选：原图升级地址 + 后端给出的全部封面变体，逐个下载并实测像素，保存最大的
+    const cands = [originalCoverUrl(info.cover)]
+      .concat((info.covers || []).map(originalCoverUrl))
+      .filter((v, i, a) => v && a.indexOf(v) === i)
+      .slice(0, 6);
+    let best = null, bestArea = 0, firstBlob = null;
+    for (const u of cands) {
+      try {
+        const res = await fetch(imgProxyUrl(u, info.webpage));
+        if (!res.ok) continue;
+        const b = await res.blob();
+        if (!b.size) continue;
+        if (!firstBlob) firstBlob = b;
+        const area = await imageBlobArea(b);
+        if (area > bestArea) { bestArea = area; best = b; }
+      } catch (_) {}
+    }
+    const blob = best || firstBlob;
+    if (!blob) throw new Error("empty");
+    const m = /\.(jpe?g|png|webp|gif|avif|bmp)(?:$|\?)/i.exec(info.cover.split("#")[0]);
+    const byType = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif", "image/avif": "avif" };
+    const ext = (m && m[1].toLowerCase().replace("jpeg", "jpg")) || byType[blob.type] || "jpg";
+    const base = (info.title || "cover").replace(/[\\/:*?"<>|\r\n]/g, "_").trim().slice(0, 80) || "cover";
+    // 统一保存到「下载地址」目录（与视频/图片/音乐同一位置），跨平台一致
+    let saved = null;
+    try {
+      const fd = new FormData();
+      fd.append("file", blob, base + "_封面." + ext);
+      fd.append("title", base);
+      fd.append("ext", ext);
+      const r = await fetch("/api/save_cover", { method: "POST", body: fd });
+      const d = await r.json();
+      if (d.ok) saved = d;
+    } catch (_) {}
+    if (saved) {
+      savedOk = true;                 // 按钮转为「已保存」并禁用，直到下一次解析
+      showDlDirMsg(t("cover_saved_to") + saved.dir, true);
+    } else {
+      // 服务端保存失败时退回浏览器下载，保证用户至少能拿到文件
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = base + "_封面." + ext;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    }
+  } catch (e) {
+    showErrorSpec({ key: "cover_fail" });
+  } finally {
+    if (savedOk) {
+      // 保持「已保存」并禁用，直到下一次解析，避免误点重复保存
+      savedState().cover = 1;
+      persistSaved();
+    }
+    updateCoverBtn();
+  }
+}
+
+// 导出歌词为 .lrc 文件（带翻译时为双语对照），存到该标题的文件夹
+async function saveLyrics() {
+  const info = lastInfo || {};
+  if (!info.lyrics) return;
+  if (savedState().lyrics) return;
+  const btn = document.getElementById("lyricsBtn");
+  btn.disabled = true; btn.textContent = t("cover_saving");
+  let savedOk = false;
+  try {
+    const res = await fetchRetry("/api/save_lyrics", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: info.title || "lyrics",
+                             lyrics: info.lyrics, lyrics_trans: info.lyrics_trans || "" })
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) savedOk = true;
+    else showErrorSpec({ data });
+  } catch (e) {
+    showErrorSpec({ key: "ERR_GENERIC" });
+  } finally {
+    if (savedOk) {
+      savedState().lyrics = 1;
+      persistSaved();
+    }
+    updateLyricsBtn();
+  }
+}
+
+// ---------------- download & progress ----------------
+const ICON_OK = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#17181a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+const ICON_FAIL = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#17181a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+
+async function startDownload(kind) {
+  if (!currentUrl) return;
+  // 批量下载（漫画全话 / 影视全集）：确认后逐话/逐集下载，结果存 总文件夹/{话/集名}/
+  let all = false;
+  if (kind === "batch") {
+    all = true;
+    if (batchBusy) return;   // 已在批量下载中，防止重复触发
+    const isMangaImg = lastInfo && lastInfo.content_type === "image";
+    const eps = (lastInfo && Array.isArray(lastInfo.episodes)) ? lastInfo.episodes : [];
+    if (!eps.length) return;
+    const msg = isMangaImg ? t("batch_confirm") : t("batch_confirm_ep");
+    if (!confirm(msg.replace("{n}", eps.length))) return;
+    kind = isMangaImg ? "images" : "video";
+    batchBusy = true;        // 按钮转为「下载中…」禁用态
+    updateEpAllBtn();
+  }
+  // 同一配置（视频含分辨率）下载过就不重复下载（批量下载不查重，随时可再来一轮）
+  const st = savedState();
+  if (!all && kind === "video" && st.video === requestedVideoHeight()) return;
+  if (!all && kind !== "video" && st[kind]) return;
+  hideError();
+  // 选最高档时传 0（= 平台最佳），避免档位标签取整（如 1600P 被标 2K）把画质卡低
+  const height = kind === "video" ? requestedVideoHeight() : 0;
+  try {
+    const res = await fetchRetry("/api/download", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: currentUrl, kind, height, proxy: getProxy(), cookie_browser: getCookieBrowser(), play_url: selectedEpisodeUrl, all })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showErrorSpec({ data });
+      if (String(data.code || "").startsWith("SPH_")) showSphPanel(true);
+      if (all) { batchBusy = false; updateEpAllBtn(); }   // 下单失败，按钮复位
+      return;
+    }
+    pollProgress(data.task_id, kind, height, all);
+  } catch (e) {
+    if (all) { batchBusy = false; updateEpAllBtn(); }
+    showErrorSpec({ key: "err_net" });
+  }
+}
+
+function pollProgress(taskId, kind, dlHeight, all) {
+  progressState = { taskId, kind, all: !!all, phase: "running", pct: 0, speed: "", eta: 0,
+                    status: "downloading", startedAt: Date.now() };
+  renderProgress();
+  document.getElementById("progressBox").scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+  clearInterval(pollTimer);
+  let pollMisses = 0;   // 连接失败的连续次数：开发模式重启会短暂失联，容忍几秒；真断了才报错
+  pollTimer = setInterval(async () => {
+    let s;
+    try {
+      const res = await fetch("/api/progress/" + taskId);
+      s = await res.json();
+      pollMisses = 0;
+    } catch (e) {
+      // 任务在服务端内存里，服务重启后任务已丢失，重试无意义
+      if (++pollMisses >= 6) {
+        clearInterval(pollTimer);
+        progressState = { taskId, kind, all: !!all, phase: "error", errorData: { error: t("poll_lost") } };
+        if (all) { batchBusy = false; updateEpAllBtn(); }   // 任务丢失，按钮复位
+        renderProgress();
+      }
+      return;
+    }
+    if (s.error) {
+      clearInterval(pollTimer);
+      progressState = { taskId, kind, all: !!all, phase: "error", errorData: s };
+      if (all) { batchBusy = false; updateEpAllBtn(); }
+      renderProgress();
+      return;
+    }
+    if (!progressState) return;
+    progressState.pct = s.progress || 0;
+    progressState.speed = s.speed || "";
+    progressState.eta = s.eta || 0;
+    progressState.count = s.count || "";
+    progressState.episode = s.episode || "";
+    // 批量结果明细（成功/跳过/失败 + 失败清单），完成卡里分开说清楚
+    progressState.okCount = s.ok_count;
+    progressState.skipCount = s.skip_count;
+    progressState.failCount = s.fail_count;
+    progressState.totalCount = s.total_count;
+    progressState.failed = Array.isArray(s.failed) ? s.failed : [];
+    progressState.status = s.status;
+    if (s.status === "done") {
+      clearInterval(pollTimer);
+      progressState.phase = "done";
+      progressState.filename = s.filename;
+      // 对应按钮转为「已保存」，防止误点重复下载（视频按档位记录）
+      // 批量下载单独记录 all：不锁定单个下载按钮，只锁定批量按钮
+      if (all) {
+        savedState().all = 1;
+        batchBusy = false;
+      } else {
+        savedState()[kind] = (kind === "video") ? (typeof dlHeight === "number" ? dlHeight : requestedVideoHeight()) : 1;
+      }
+      persistSaved();
+      updateDlBtns();
+    } else if (s.status === "error") {
+      clearInterval(pollTimer);
+      progressState.phase = "error";
+      progressState.errorData = s;
+      if (all) { batchBusy = false; updateEpAllBtn(); }
+    }
+    renderProgress();
+  }, 800);
+}
+
+function fmtEta(sec) {
+  const n = Number(sec) || 0;
+  if (n >= 60) return lang === "zh" ? `${Math.floor(n / 60)} 分 ${n % 60} 秒` : `${Math.floor(n / 60)}m ${n % 60}s`;
+  return lang === "zh" ? `${n} 秒` : `${n}s`;
+}
+
+// 已用时：每秒跳动的本地计时（即使百分比/速度长期不变也看得出在走）
+function fmtElapsed(sec) {
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m > 0 ? `${m}:${String(s).padStart(2, "0")}` : `${s}s`;
+}
+
+function renderProgress() {
+  const box = document.getElementById("progressBox");
+  const card = document.getElementById("progressCard");
+  const s = progressState;
+  if (!s) { box.style.display = "none"; card.innerHTML = ""; return; }
+  box.style.display = "block";
+  if (s.phase === "running") {
+    let title = t("prog_dl");
+    if (s.kind === "audio") title = t("prog_audio");
+    else if (s.kind === "music") title = t("prog_music");
+    else if (s.kind === "images") title = t("prog_img");
+    if (s.status === "processing" && s.kind !== "images") title = t("prog_merge");
+    // 批量下载：count 是「N/M 话/集」，附带当前下载的话/集名 + 已用时（本地计时）
+    const elapsed = s.startedAt ? Math.max(0, Math.floor((Date.now() - s.startedAt) / 1000)) : 0;
+    const meta1 = [s.speed, s.count && s.count, s.episode,
+                   elapsed > 0 && t("elapsed") + fmtElapsed(elapsed)].filter(Boolean).join(" · ");
+    card.innerHTML = `
+      <div class="progress-head"><span>${title}</span><span>${s.pct || 0}%</span></div>
+      <div class="bar"><div class="bar-fill" style="width:${s.pct || 0}%"></div></div>
+      <div class="progress-meta"><span>${meta1}</span><span>${s.eta ? t("eta_prefix") + fmtEta(s.eta) : ""}</span></div>`;
+  } else if (s.phase === "done") {
+    // 批量任务把「成功 / 跳过 / 失败」分开写清楚，不再让人猜「3/15 话」是什么意思
+    let meta = "";
+    if (s.all && typeof s.okCount === "number") {
+      const isCh = s.kind !== "video";
+      const parts = [t(isCh ? "res_ok" : "res_ok_ep")(s.okCount)];
+      if (s.skipCount) parts.push(t(isCh ? "res_skip" : "res_skip_ep")(s.skipCount));
+      if (s.failCount) parts.push(t(isCh ? "res_fail" : "res_fail_ep")(s.failCount));
+      meta = parts.join(" · ");
+      if (s.failCount && s.failed && s.failed.length) {
+        const names = s.failed.slice(0, 4).join("、") + (s.failed.length > 4 ? "…" : "");
+        meta += `<span class="done-list">${t("res_failed_list")}${names}</span>`;
+      }
+    }
+    card.innerHTML = `
+      <div class="done-box">
+        <div class="done-icon">${ICON_OK}</div>
+        <p>${s.filename || t("ready")}${meta ? "" : (s.count ? "（" + s.count + "）" : "")}</p>
+        ${meta ? `<p class="done-meta">${meta}</p>` : ""}
+        <button class="btn" onclick="revealFile('${s.taskId}')">${t("save_btn")}</button>
+      </div>`;
+  } else {
+    const msg = s.errorData ? localizeError(s.errorData) : (s.errorText || "");
+    card.innerHTML = `<div class="done-box"><div class="done-icon">${ICON_FAIL}</div><p>${t("dl_fail")}${msg}</p></div>`;
+  }
+}
+
+// 打开系统文件管理器并选中已完成文件（文件已在下载地址里，不重复下载）
+async function revealFile(taskId) {
+  try {
+    const r = await fetch("/api/reveal_file", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ task_id: taskId })
+    });
+    const d = await r.json();
+    if (!d.ok) alert(t("reveal_fail") + (d.error || ""));
+  } catch (e) {
+    alert(t("reveal_fail") + e);
+  }
+}
+
+document.getElementById("urlInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") analyze();
+});
+</script>
+
+</div>
+</body>
+</html>
