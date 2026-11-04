@@ -58,7 +58,7 @@ def main():
         "--add-data", os.path.join(BASE, "templates") + SEP + "templates",
         # Third-party license texts (GPL v3 for ffmpeg/mutagen, Apache-2.0 for hls.js)
         "--add-data", os.path.join(BASE, "licenses") + SEP + "licenses",
-        "--add-data", os.path.join(BASE, "THIRD-PARTY-NOTICES.md") + SEP,
+        "--add-data", os.path.join(BASE, "THIRD-PARTY-NOTICES.md") + SEP + ".",
         # Self-invoked helper processes (folder picker / cookie export)
         "--hidden-import", "pick_dir_helper",
         "--hidden-import", "export_cookies",
