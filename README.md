@@ -12,6 +12,11 @@
   Author: <b>K-Domain</b> · License: <a href="LICENSE">MIT</a>
 </p>
 
+<p align="center">
+  <img src="assets/screenshot-main.png" alt="主界面 / Main interface" width="880">
+</p>
+<p align="center"><sub>主界面 / Main interface（截图中的链接、历史记录与版权图片已模糊处理 / links, history &amp; copyrighted images masked）</sub></p>
+
 ---
 
 ## 这个工具解决什么问题 / What problem does it solve
