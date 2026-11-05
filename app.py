@@ -6005,5 +6005,18 @@ if __name__ == "__main__":
             threading.Timer(1.2, lambda: __import__("webbrowser").open(url)).start()
     # In dev mode also watch the template, so editing the HTML restarts too.
     extra = [os.path.join(RES_DIR, "templates", "index.html")] if dev else None
+    # Werkzeug 给开发服务器打一行红色英文警告（提醒要换生产级 WSGI 服务器）。
+    # 本工具只监听 127.0.0.1、仅服务本机用户，不存在"生产部署"场景，
+    # 这行字只会吓到最终用户；横幅已由上方自带的 4 行提示承担，故全部静音。
+    from werkzeug.serving import WSGIRequestHandler
+
+    class _QuietStartupHandler(WSGIRequestHandler):
+        def log_startup(self):
+            pass
+
+    import flask.cli as _flask_cli
+    _flask_cli.show_server_banner = lambda *a, **k: None
+
     app.run(host="127.0.0.1", port=port, threaded=True,
-            use_reloader=dev, extra_files=extra)
+            use_reloader=dev, extra_files=extra,
+            request_handler=_QuietStartupHandler)
