@@ -48,10 +48,22 @@ jobs:
           ./scripts/build_appimage.sh
         continue-on-error: true   # ship the raw binary even if AppImage tooling fails
 
+      - name: Package (zip)
+        shell: bash
+        run: |
+          cd dist
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            tar -a -cf ../UniversalMediaExtractor-windows.zip UniversalMediaExtractor.exe
+          elif [ "$RUNNER_OS" = "macOS" ]; then
+            zip -qry ../UniversalMediaExtractor-macos.zip UniversalMediaExtractor.app
+          else
+            zip -qry ../UniversalMediaExtractor-linux.zip .
+          fi
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: dist/*
+          path: UniversalMediaExtractor-*.zip
           if-no-files-found: error
 
   release:
