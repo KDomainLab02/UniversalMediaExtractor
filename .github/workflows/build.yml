@@ -53,12 +53,20 @@ jobs:
         run: |
           cd dist
           if [ "$RUNNER_OS" = "Windows" ]; then
-            tar -a -cf ../UniversalMediaExtractor-windows.zip UniversalMediaExtractor.exe
+            # 注意：不能用 `tar -a -cf xxx.zip`。GNU tar 写不出 zip 格式，
+            # 只会产出一个改了后缀的 tar 包，Windows 用户双击会报"压缩文件夹无效"。
+            # 用 Python 标准库打真正的 zip（跨平台、无需额外工具）。
+            python -m zipfile -c ../UniversalMediaExtractor-windows.zip UniversalMediaExtractor.exe
           elif [ "$RUNNER_OS" = "macOS" ]; then
             zip -qry ../UniversalMediaExtractor-macos.zip UniversalMediaExtractor.app
           else
             zip -qry ../UniversalMediaExtractor-linux.zip .
           fi
+
+      - name: Verify the zip is really a zip
+        shell: bash
+        run: |
+          python -c "import glob,zipfile; fs=glob.glob('UniversalMediaExtractor-*.zip'); [zipfile.ZipFile(f).testzip() for f in fs]; print('validated:', fs)"
 
       - uses: actions/upload-artifact@v4
         with:
