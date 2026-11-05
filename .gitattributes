@@ -1,0 +1,19 @@
+# 换行符策略 / Line-ending policy
+#
+# Windows 批处理文件必须是 CRLF，否则 cmd.exe 可能把行尾吃掉导致命令拼接出错。
+# 明确写下来，避免不同机器 core.autocrlf 设置不同时产生"内容没改却显示已修改"的假 diff。
+
+*.bat      text eol=crlf
+*.cmd      text eol=crlf
+*.command  text eol=lf
+*.sh       text eol=lf
+
+# 二进制资源不参与文本换行转换
+*.png      binary
+*.ico      binary
+*.jpg      binary
+*.jpeg     binary
+*.gif      binary
+*.zip      binary
+*.exe      binary
+*.app      binary

@@ -108,13 +108,13 @@ YouTube · TikTok · Instagram · Twitter/X · Facebook · Bilibili · 抖音 ·
 
 ### 方式零 / Option 0：现成可执行文件（不用装 Python）
 
-到 [Releases](https://github.com/K-Domain/universal-media-extractor/releases) 下载对应系统的包，解压后直接双击：
+到 [Releases](https://github.com/KDomainLab02/UniversalMediaExtractor/releases) 下载对应系统的 **zip 包**，解压后直接双击里面那个文件：
 
-| 系统 | 文件 | 说明 |
-| --- | --- | --- |
-| Windows 10/11 | `UniversalMediaExtractor.exe` | 双击即用，约 60 MB 单文件 |
-| macOS | `UniversalMediaExtractor.app` | 首次打开需**右键 → 打开**（未做 Apple 签名，系统会拦一次） |
-| Linux | `UniversalMediaExtractor` | 先 `chmod +x`，再双击或终端运行 |
+| 系统 | 下载的包 | 解压后得到 | 说明 |
+| --- | --- | --- | --- |
+| Windows 10/11 | `UniversalMediaExtractor-windows.zip` | `UniversalMediaExtractor.exe` | 双击即用，约 60 MB 单文件 |
+| macOS | `UniversalMediaExtractor-macos.zip` | `UniversalMediaExtractor.app` | 首次打开需**右键 → 打开**（未做 Apple 签名，系统会拦一次） |
+| Linux | `UniversalMediaExtractor-linux.zip` | `UniversalMediaExtractor` | 先 `chmod +x`，再双击或终端运行 |
 
 几点要知道：
 
@@ -157,8 +157,8 @@ chmod +x start.command
 
 ```bash
 # 1. 获取代码（或直接下载 ZIP 解压）
-git clone https://github.com/K-Domain/universal-media-extractor.git
-cd universal-media-extractor
+git clone https://github.com/KDomainLab02/UniversalMediaExtractor.git
+cd UniversalMediaExtractor
 
 # 2. 启动（launcher 会检查 Python 版本并自动安装依赖）
 python launcher.py        # Windows 也可能要用 py -3 launcher.py
@@ -354,7 +354,7 @@ This project is for personal learning and research only. Please respect the copy
 
 ## License
 
-[MIT](LICENSE) © 2026 [K-Domain](https://github.com/K-Domain)
+[MIT](LICENSE) © 2026 [K-Domain](https://github.com/KDomainLab02)
 
 ## Third-party Components / 第三方组件
 
