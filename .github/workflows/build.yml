@@ -17,14 +17,17 @@ jobs:
           - os: windows-latest
             artifact: windows
             args: ""
-          - os: macos-13   # Intel runner; arm64 (macos-latest) is heavily queued on the free tier
+          - os: macos-15
             artifact: macos
             args: "--app"
+            fail_ok: true   # free-tier macOS runners are scarce; never block the release on them
           - os: ubuntu-latest
             artifact: linux
             args: ""
 
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    continue-on-error: ${{ matrix.fail_ok == true }}
     steps:
       - uses: actions/checkout@v4
 
