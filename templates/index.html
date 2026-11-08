@@ -1077,7 +1077,7 @@ const HELP = {
             <span class="tag">抖音</span><span class="tag">快手</span><span class="tag">西瓜视频</span>
             <span class="tag">微博</span><span class="tag">小红书</span><span class="tag">知乎</span>
             <span class="tag">网易云音乐</span><span class="tag">汽水音乐</span>
-            <span class="tag">电影先生</span><span class="tag">大师兄影视</span><span class="tag">同类影视站</span>
+            <span class="tag">电影先生</span><span class="tag">大师兄影视</span><span class="tag">4K动漫</span><span class="tag">同类影视站</span>
             <span class="tag">漫画库</span>
             <span class="tag">微信视频号</span><span class="tag off">Netflix</span><span class="tag off">Disney+</span>
           </div>
@@ -1089,7 +1089,7 @@ const HELP = {
             <li>小红书：分享短链（xhslink.cn）或笔记链接都支持，图文笔记导出全部原图，视频笔记直接取无水印原片（比页面播放流更清晰），均无需登录</li>
             <li>抖音：分享短链（v.douyin.com）或网页链接都支持，视频/图集/音乐均免登录无水印解析 —— 会临时调用本机 Edge/Chrome 以无痕模式在后台打开页面取数据（不打开窗口、不留痕迹、不上传任何内容）</li>
             <li>微信视频号：分享短链（weixin.qq.com/sph/…）支持 —— 需一次性配置腾讯元宝登录态（页面下方面板按 F12 指引复制 Cookie 粘贴保存，一次配置永久生效）。视频导出平台下发的原画 MP4（视频号码率本身较低、清晰度以平台为准），直播回放与付费内容不支持</li>
-            <li>影视站：电影先生（silidm.com）、大师兄影视（szakb.com）及各类同类影视站都支持 —— 直接复制浏览器地址栏的当前页链接粘贴即可，不用在站内点「分享」再复制链接；详情页、播放页都认。工具会自动识别同类站点（苹果CMS 内核），从各播放线路解析出视频源并合成 MP4 下载（免登录、国内直连、无需代理）。某条线路失效会自动换线路；多集影片可在解析结果的「选择剧集」下拉里选集下载</li>
+            <li>影视站：电影先生（silidm.com）、大师兄影视（szakb.com）、4K动漫（cn.agekkkk.com）及各类同类影视站都支持 —— 直接复制浏览器地址栏的当前页链接粘贴即可，不用在站内点「分享」再复制链接；详情页、播放页都认。工具会自动识别同类站点（苹果CMS 内核），从各播放线路解析出视频源并合成 MP4 下载（免登录、国内直连、无需代理）。某条线路失效会自动换线路；多集影片可在解析结果的「选择剧集」下拉里选集下载</li>
             <li>漫画：通用支持各类漫画站（不锁平台）—— 粘贴某一话的<b>阅读页</b>或作品<b>详情页/主页</b>链接即可（不用点分享）；阅读页自动抓取整话全部页图，详情页则在「选择话数」里挑想下载的话，也支持「下载全话」。已实测：漫画库（manhuaku.com.cn）等；页面结构相似的站点大概率直接可用（带反爬盾的站点除外）。逐张导出为高清 PNG，存放在「<b>XXX漫画-XXX话</b>」文件夹里（如「呪術廻戦漫画-第271話」）</li>
             <li>需要网络代理：取决于你所在网络能否访问该平台 —— 点「自动检测」会自动判断并选出可用方案</li>
             <li>不支持：DRM 加密内容（Netflix / Disney+ / Prime Video 等）、付费课程与会员专属内容、需实时鉴权的私密直播</li>
@@ -1164,7 +1164,7 @@ const HELP = {
             <li>Xiaohongshu: both share links (xhslink.cn) and note links work — image notes export every original image, video notes get the watermark-free source video (higher quality than the page stream), no login required</li>
             <li>Douyin: share short links (v.douyin.com) and web links both work — video / gallery / music all parse without login and without watermark. It temporarily launches your local Edge/Chrome invisibly (headless, incognito profile) to fetch data — no window, no traces, nothing uploaded</li>
             <li>WeChat Channels: share short links (weixin.qq.com/sph/…) are supported — a one-time Tencent Yuanbao sign-in is required (follow the F12 guide in the panel below to copy the cookie, paste and save; one-time, works forever). Videos export the platform's original-quality MP4 (Channels bitrate is low by design; quality is what the platform serves). Live replays and paid content are not supported</li>
-            <li>Movie sites: MovieSir (silidm.com), 大师兄影视 / DaShiXiong (szakb.com) and similar sites are all supported — just copy the current page URL from the browser address bar and paste it here; no need to tap "Share" on the site to get a link. Both detail pages and play pages work. Similar sites (macCMS-based) are detected automatically; the tool resolves the video source from the play routes and merges it into an MP4 (no login, direct connection in China, no proxy needed). Dead routes are skipped automatically; for multi-episode titles, pick an episode in the "Select episode" dropdown on the result card before downloading</li>
+            <li>Movie sites: MovieSir (silidm.com), 大师兄影视 / DaShiXiong (szakb.com), 4K动漫 / 4K Anime (cn.agekkkk.com) and similar sites are all supported — just copy the current page URL from the browser address bar and paste it here; no need to tap "Share" on the site to get a link. Both detail pages and play pages work. Similar sites (macCMS-based) are detected automatically; the tool resolves the video source from the play routes and merges it into an MP4 (no login, direct connection in China, no proxy needed). Dead routes are skipped automatically; for multi-episode titles, pick an episode in the "Select episode" dropdown on the result card before downloading</li>
             <li>Manga: generic support for most manga sites (not locked to one platform) — paste a chapter <b>reader page</b> or the series <b>detail / home page</b> URL (no need to tap Share). Reader pages grab the whole chapter automatically; detail pages let you pick a chapter in "Select chapter", plus "Download All Chapters". Verified with Manhuaku (manhuaku.com.cn); sites with similar templates usually just work (sites behind an anti-bot shield may not). Saved page by page as high-quality PNG inside the "<b>XXX漫画-XXX话</b>" folder (e.g. 呪術廻戦漫画-第271話)</li>
             <li>Proxy may be required: depends on whether your network can reach the platform — click Auto-detect and it will find a working route</li>
             <li>Not supported: DRM-protected content (Netflix / Disney+ / Prime Video), paid courses and members-only content, private live rooms</li>

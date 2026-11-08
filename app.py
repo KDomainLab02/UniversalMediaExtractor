@@ -731,12 +731,12 @@ _FILM_HTML_CACHE = {}                     # url -> (时间戳, html)：解析/�
 _FILM_HTML_CACHE_TTL = 120                # 秒；影视站页面短时间内不会变
 
 
-def _film_html(url: str) -> str:
+def _film_html(url: str, referer: str = "") -> str:
     now = time.time()
     hit = _FILM_HTML_CACHE.get(url)
     if hit and now - hit[0] < _FILM_HTML_CACHE_TTL:
         return hit[1]
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Referer": url})
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Referer": referer or url})
     # 国内漫画站直连优先：系统代理（Clash 规则/上游波动）经常对它 502，
     # 直连失败再退回系统代理试一次；影视站维持原样（跟随系统代理）
     if _manga_site(url):
@@ -769,9 +769,13 @@ def _film_episode_groups(html: str):
             r'href="([^"]*?/[a-z0-9_-]*play[a-z0-9_-]*/[^"?]+\.html)"[^>]*>([^<]*)</a>',
             html, re.I):
         u, text = m.group(1), m.group(2).strip()
-        me = re.search(r"-(\d+)\.html$", u)
+        # 集数有两种写法：/play/影片ID-线路-集数.html（电影先生系）
+        # 与 /play/线路/集数.html（本类站，集数在最后一段）
+        me = re.search(r"-(\d+)\.html$", u) or re.search(r"/(\d+)\.html$", u)
         ep = int(me.group(1)) if me else 0
         key = re.sub(r"-\d+\.html$", ".html", u)   # 去掉结尾集数 = 线路
+        if key == u:
+            key = re.sub(r"/\d+\.html$", "/", u)   # 斜杠式：去掉末段集数 = 线路
         groups.setdefault(key, {})[ep] = (text, u)
     routes = []
     for key, eps in groups.items():
@@ -815,11 +819,288 @@ def _film_m3u8(play_url: str) -> str:
             cfg = json.loads(html[i:end + 1])
         except ValueError:
             continue
-        u = (cfg.get("url") or "").strip()
+        u = _film_decode_url(cfg.get("url") or "", cfg.get("encrypt") or "0")
         if u:
             # 个别线路用 $$$/### 分隔多清晰度或多片段，取第一段
-            return u.split("$$$")[0].split("###")[0]
-    return ""
+            u = u.split("$$$")[0].split("###")[0].strip()
+            # 正规苹果CMS站这里是 m3u8/mp4 直链
+            if re.match(r"https?://", u, re.I):
+                return u
+            # 不是 URL，说明只是「外部播放器的视频 token」（v2player 系常见）。
+            # 这类站真实地址由播放器 JS 用 AES 现算，照着算一遍即可，无需浏览器。
+            tp = _film_tp_player(play_url, cfg)
+            if tp:
+                return tp
+            break
+    # 最后兜底：真浏览器跑一遍，从网络层拦 .m3u8（其它加密形态）
+    return _film_via_cdp(play_url)
+
+
+_FILM_AES_KEY = b"ABABEF777999CCCD"       # 第三方播放器 v2player 系内置固定密钥
+
+
+def _film_tp_player(play_url: str, cfg: dict) -> str:
+    """第三方加密播放器兜底（v2player 系）：
+    播放页的 player_aaaa.url 只是个 token，站点自己的 /static/player/<from>.js
+    会把它拼成外部播放器 iframe 的地址；该 iframe 页面里的真实视频地址写作
+    playData('<base64密文>', '<iv>')，AES-128-CBC 解密即得。
+    全程静态 HTTP + 本地解密，不用启动浏览器。"""
+    token = _film_decode_url(cfg.get("url") or "", cfg.get("encrypt") or "0")
+    frm = str(cfg.get("from") or "").strip()
+    site = re.match(r"(https?://[^/]+)", play_url or "", re.I)
+    if not (token and frm and site):
+        return ""
+    if re.match(r"https?://", token, re.I):          # 已经是直链就不用绕
+        return ""
+    try:
+        js = _film_html(f"{site.group(1)}/static/player/{frm}.js", play_url)
+    except Exception:
+        return ""
+    # 播放器脚本里是 JS 字符串拼接：'<iframe ... src="https://host/player/?' + params
+    # 所以问号后面跟的是引号或字符串结束符，不能强求双引号闭合
+    mb = re.search(r"""src=["'](https?://[^"']+/player/\?)""", js)
+    if not mb:                                       # 不是这一族播放器
+        return ""
+    vod = cfg.get("vod_data") or {}
+    params = {
+        "url": token,
+        "dmid": cfg.get("id") or "",
+        "next": cfg.get("link_next") or "",
+        "name": vod.get("vod_name") or "",
+        "sid": cfg.get("sid") or "",
+        "nid": cfg.get("nid") or "",
+        "ph": "",
+        "h": site.group(1),
+        "pic": vod.get("vod_pic") or "",
+    }
+    try:
+        from urllib.parse import urlencode
+        page = _film_html(mb.group(1) + urlencode(
+            {k: str(v) for k, v in params.items()}), play_url)
+    except Exception:
+        return ""
+    mp = re.search(r"playData\(\s*['\"]([^'\"]+)['\"]\s*,\s*['\"]([^'\"]+)['\"]\s*\)", page)
+    if not mp:
+        return ""
+    try:
+        iv = bytes.fromhex(mp.group(2))
+        plain = _aes128_cbc_decrypt(mp.group(1), _FILM_AES_KEY, iv)
+        out = plain.decode("utf-8", "ignore").strip()
+    except Exception:
+        return ""
+    return out if re.match(r"https?://", out, re.I) else ""
+
+
+# ---- 极简 AES-128-CBC 解密（纯标准库实现，避免为解密一个地址引入加密依赖）----
+def _aes_gf_mul(a: int, b: int) -> int:
+    p = 0
+    for _ in range(8):
+        if b & 1:
+            p ^= a
+        hi = a & 0x80
+        a = (a << 1) & 0xFF
+        if hi:
+            a ^= 0x1B
+        b >>= 1
+    return p
+
+
+def _aes_gf_pow(a: int, n: int) -> int:
+    r = 1
+    while n:
+        if n & 1:
+            r = _aes_gf_mul(r, a)
+        a = _aes_gf_mul(a, a)
+        n >>= 1
+    return r
+
+
+def _aes_tables():
+    """S 盒由 GF(2^8) 逆元 + 仿射变换生成，免去手抄 256 项出错的风险"""
+    inv = [0] + [_aes_gf_pow(x, 254) for x in range(1, 256)]
+    sbox = []
+    for x in range(256):
+        v = inv[x]
+        r = v
+        for _ in range(4):
+            v = ((v << 1) | (v >> 7)) & 0xFF
+            r ^= v
+        sbox.append(r ^ 0x63)
+    inv_sbox = [0] * 256
+    for i, v in enumerate(sbox):
+        inv_sbox[v] = i
+    return sbox, inv_sbox
+
+
+_AES_SBOX, _AES_INV_SBOX = _aes_tables()
+
+
+def _aes_expand_key(key: bytes):
+    rcon = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36]
+    w = [list(key[i:i + 4]) for i in range(0, 16, 4)]
+    for i in range(4, 44):
+        t = list(w[i - 1])
+        if i % 4 == 0:
+            t = [_AES_SBOX[x] for x in t[1:] + t[:1]]
+            t[0] ^= rcon[i // 4 - 1]
+        w.append([w[i - 4][j] ^ t[j] for j in range(4)])
+    return [sum(w[r * 4:r * 4 + 4], []) for r in range(11)]
+
+
+def _aes_decrypt_block(block, rk):
+    s = [block[i] ^ rk[10][i] for i in range(16)]
+    for rnd in range(9, 0, -1):
+        t = [0] * 16                                  # InvShiftRows
+        for c in range(4):
+            for r in range(4):
+                t[c * 4 + r] = s[((c - r) % 4) * 4 + r]
+        s = [_AES_INV_SBOX[x] for x in t]              # InvSubBytes
+        s = [s[i] ^ rk[rnd][i] for i in range(16)]     # AddRoundKey
+        m = [0] * 16                                  # InvMixColumns
+        for c in range(4):
+            a = s[c * 4:c * 4 + 4]
+            m[c * 4 + 0] = _aes_gf_mul(a[0], 14) ^ _aes_gf_mul(a[1], 11) ^ _aes_gf_mul(a[2], 13) ^ _aes_gf_mul(a[3], 9)
+            m[c * 4 + 1] = _aes_gf_mul(a[0], 9) ^ _aes_gf_mul(a[1], 14) ^ _aes_gf_mul(a[2], 11) ^ _aes_gf_mul(a[3], 13)
+            m[c * 4 + 2] = _aes_gf_mul(a[0], 13) ^ _aes_gf_mul(a[1], 9) ^ _aes_gf_mul(a[2], 14) ^ _aes_gf_mul(a[3], 11)
+            m[c * 4 + 3] = _aes_gf_mul(a[0], 11) ^ _aes_gf_mul(a[1], 13) ^ _aes_gf_mul(a[2], 9) ^ _aes_gf_mul(a[3], 14)
+        s = m
+    t = [0] * 16
+    for c in range(4):
+        for r in range(4):
+            t[c * 4 + r] = s[((c - r) % 4) * 4 + r]
+    s = [_AES_INV_SBOX[x] for x in t]
+    return bytes(s[i] ^ rk[0][i] for i in range(16))
+
+
+def _aes128_cbc_decrypt(b64_text: str, key: bytes, iv: bytes) -> bytes:
+    data = base64.b64decode(b64_text + "=" * (-len(b64_text) % 4))
+    rk = _aes_expand_key(key)
+    out, prev = b"", iv[:16]
+    for i in range(0, len(data) - len(data) % 16, 16):
+        blk = data[i:i + 16]
+        dec = _aes_decrypt_block(blk, rk)
+        out += bytes(x ^ y for x, y in zip(dec, prev))
+        prev = blk
+    if out:
+        pad = out[-1]
+        if 0 < pad <= 16 and out.endswith(bytes([pad]) * pad):
+            out = out[:-pad]
+    return out
+
+
+def _film_decode_url(u: str, encrypt: str = "0") -> str:
+    """按苹果CMS 的 encrypt 约定解出真实地址。
+    0=明文；1=unescape(百分号编码)；2=base64 后 unescape。
+    注意 encrypt=1 解出来也未必是 URL：部分站只是把「外部播放器的视频 token」
+    塞进这个字段，真实 m3u8 由播放器 JS 现算（见 _film_via_cdp）。"""
+    from urllib.parse import unquote
+    s = (u or "").strip()
+    if not s:
+        return ""
+    enc = str(encrypt or "0").strip()
+    if enc == "2":
+        try:
+            s = base64.b64decode(s + "=" * (-len(s) % 4)).decode("utf-8", "ignore")
+        except Exception:
+            pass
+    if enc in ("1", "2") or "%" in s:
+        try:
+            s = unquote(s)
+        except Exception:
+            pass
+    return s.strip()
+
+
+_FILM_CDP_CACHE = {}                      # 播放页 -> (时间戳, m3u8)：一次解析多次复用
+_FILM_CDP_TTL = 600                       # 命中缓存有效期（秒）
+_FILM_CDP_FAIL_TTL = 120                  # 失败也缓存一小会儿，避免反复拉起浏览器
+
+
+def _film_via_cdp(play_url: str, timeout_s: int = 22) -> str:
+    """第三方加密播放器兜底：用真浏览器打开播放页，从网络层拦截 .m3u8 请求。
+    有的站 player_aaaa.url 只是一个 token，真实地址要播放器 JS 现算，
+    静态抓页面永远拿不到——只能让浏览器跑一遍，看它去请求了什么。
+    没有 HLS 时退回 <video> 的当前地址（mp4 直链站）。"""
+    hit = _FILM_CDP_CACHE.get(play_url)
+    if hit:
+        ttl = _FILM_CDP_TTL if hit[1] else _FILM_CDP_FAIL_TTL
+        if time.time() - hit[0] < ttl:
+            return hit[1]
+    if websocket is None:
+        return ""
+    port = _dy_cdp_browser()
+    target, ws, found = "", None, ""
+    try:
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/json/new?url=about:blank",
+            method="PUT", headers={"User-Agent": UA})
+        try:
+            t = json.loads(urllib.request.urlopen(req, timeout=5).read())
+        except Exception:
+            t = json.loads(urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/json/new?url=about:blank", timeout=5).read())
+        target = t.get("id") or ""
+        ws_url = t.get("webSocketDebuggerUrl") or ""
+        if not (target and ws_url):
+            return ""
+        ws = websocket.create_connection(ws_url, timeout=10)
+        ws.settimeout(2.0)                # 单次收包超时，靠外层总时限控制整体等待
+        mid = [0]
+
+        def send(method, params=None):
+            mid[0] += 1
+            ws.send(json.dumps({"id": mid[0], "method": method, "params": params or {}}))
+            return mid[0]
+
+        send("Network.enable")
+        send("Page.enable")
+        send("Page.navigate", {"url": play_url})
+        t0 = time.time()
+        while time.time() - t0 < timeout_s and not found:
+            try:
+                msg = json.loads(ws.recv())
+            except Exception:
+                continue                  # 空闲超时（这2秒没有新请求）继续等，直到总时限
+            if msg.get("method") != "Network.requestWillBeSent":
+                continue
+            u = ((msg.get("params") or {}).get("request") or {}).get("url") or ""
+            low = u.lower()
+            # 排除弹幕/广告接口，只要真正的视频流
+            if ".m3u8" in low and not any(x in low for x in
+                                         ("danmu", "barrage", "advert", "/ad/", "/ads/")):
+                found = u
+        if not found:                     # 非 HLS 的站：读 <video> 的直链
+            try:
+                r = send("Runtime.evaluate", {
+                    "expression": "(function(){var v=document.querySelector('video');"
+                                  "return v?(v.currentSrc||v.src||''):''})()",
+                    "returnByValue": True})
+                while True:
+                    msg = json.loads(ws.recv())
+                    if msg.get("id") == r:
+                        found = (((msg.get("result") or {}).get("result") or {})
+                                 .get("value") or "")
+                        break
+            except Exception:
+                found = ""
+        if len(_FILM_CDP_CACHE) > 48:
+            _FILM_CDP_CACHE.pop(next(iter(_FILM_CDP_CACHE)))
+        _FILM_CDP_CACHE[play_url] = (time.time(), found)
+        return found
+    except Exception:
+        return ""
+    finally:
+        try:
+            if ws is not None:
+                ws.close()
+        except Exception:
+            pass
+        if target:
+            try:
+                urllib.request.urlopen(
+                    f"http://127.0.0.1:{port}/json/close/{target}", timeout=3).read()
+            except Exception:
+                pass
 
 
 def _film_title_cover(html: str):
@@ -888,15 +1169,28 @@ def _film_resolve(url: str, generic: bool = False, play_url: str = ""):
         if phtml:
             try:
                 mid = re.search(r"/(\d+)(?:-\d+)*\.html", pages[0])
-                md = None
                 cands = re.findall(
                     r'href="([^"]*?/[a-z0-9_-]*(?:detail|video|vod)[a-z0-9_-]*/\d+\.html)"',
                     phtml, re.I)
                 if mid:
                     md = next((c for c in cands
                                if re.search(r"/" + mid.group(1) + r"\.html$", c)), None)
+                else:
+                    md = None
                 if md is None and cands:
                     md = cands[0]
+                if md is None:
+                    # 有些站详情页路径段不含 detail/video/vod（如 /anime/<id>.html）。
+                    # 用播放页 URL 里 /play/ 前那段 ID 反查同 ID 链接，找不到就直接改写 URL：
+                    #   https://host/anime/<id>/play/1/5.html → https://host/anime/<id>.html
+                    mp = re.search(r"/([0-9a-zA-Z_-]{6,})/play/", pages[0])
+                    mpid = mp.group(1) if mp else ""
+                    if mpid:
+                        allh = re.findall(r'href="([^"]+\.html)"', phtml, re.I)
+                        md = next((c for c in allh
+                                   if re.search(r"/" + re.escape(mpid) + r"\.html$", c)), None)
+                        if md is None:
+                            md = re.sub(r"/play/[^?#]*$", ".html", pages[0])
                 if md:
                     durl = md
                     if not durl.startswith("http"):
@@ -1006,11 +1300,16 @@ def _film_meta(m3u8_url: str, origin: str):
     结构特殊解析不了会抛异常，由调用方回落 yt-dlp。返回 (时长秒, 分辨率高度集合)"""
     from urllib.parse import urljoin
 
+    # 只有 HLS 才有清单可解；mp4 直链（第三方播放器解出来的多是这种）不能整份读进内存，
+    # 直接交给调用方回落 yt-dlp 探测
+    if ".m3u8" not in (m3u8_url or "").split("?")[0].lower():
+        raise ValueError("not hls")
+
     def fetch(u: str) -> str:
         req = urllib.request.Request(
             u, headers={"User-Agent": UA, "Referer": origin + "/"})
         with urllib.request.urlopen(req, timeout=15) as r:
-            return r.read().decode("utf-8", "ignore")
+            return r.read(512 * 1024).decode("utf-8", "ignore")
 
     text = fetch(m3u8_url)
     heights = set()
@@ -5786,8 +6085,11 @@ def api_image_proxy():
     if "doubanio.com" in url:
         # 豆瓣图床只认豆瓣自己的 Referer，其它一律 403/418
         ref = "https://movie.douban.com/"
-    if _manga_site(url) or _manga_site(ref):
-        # 漫画站图床国内直连，走代理反而连不上
+    if _manga_site(url) or _manga_site(ref) \
+            or "doubanio.com" in url \
+            or (_film_site(ref) or _film_looks_like(ref)):
+        # 漫画站图床、豆瓣图床、影视站封面均为国内可直连资源，
+        # 走用户代理反而连不上（与 video_preview 的直连逻辑同理）
         opts = base_opts("", request.args.get("cookie", ""))
     try:
         ydl = yt_dlp.YoutubeDL(opts)
@@ -6005,18 +6307,5 @@ if __name__ == "__main__":
             threading.Timer(1.2, lambda: __import__("webbrowser").open(url)).start()
     # In dev mode also watch the template, so editing the HTML restarts too.
     extra = [os.path.join(RES_DIR, "templates", "index.html")] if dev else None
-    # Werkzeug 给开发服务器打一行红色英文警告（提醒要换生产级 WSGI 服务器）。
-    # 本工具只监听 127.0.0.1、仅服务本机用户，不存在"生产部署"场景，
-    # 这行字只会吓到最终用户；横幅已由上方自带的 4 行提示承担，故全部静音。
-    from werkzeug.serving import WSGIRequestHandler
-
-    class _QuietStartupHandler(WSGIRequestHandler):
-        def log_startup(self):
-            pass
-
-    import flask.cli as _flask_cli
-    _flask_cli.show_server_banner = lambda *a, **k: None
-
     app.run(host="127.0.0.1", port=port, threaded=True,
-            use_reloader=dev, extra_files=extra,
-            request_handler=_QuietStartupHandler)
+            use_reloader=dev, extra_files=extra)
